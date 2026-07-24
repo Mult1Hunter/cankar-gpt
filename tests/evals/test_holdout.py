@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 
 from cankar.core.errors import CankarError
+from cankar.core.holdout import HoldoutParams, holdout_excludes, load_holdout
 from cankar.evals import holdout
-from cankar.evals.holdout import HoldoutParams
 from cankar.tokenizer import train
 
 FIX = Path(__file__).parent.parent / "fixtures"
@@ -143,7 +143,7 @@ def test_selection_deterministic(enc, docs) -> None:
 def test_excludes_filter_unions_both_directions(enc, docs) -> None:
     r = holdout.select_holdout(docs, enc, PARAMS)
     manifest = _manifest(r.works, r.also_exclude_urls)
-    ex = holdout.holdout_excludes(manifest)
+    ex = holdout_excludes(manifest)
     assert ex == frozenset(w.url for w in r.works) | frozenset(r.also_exclude_urls)
     assert "https://example.com/not-holdout" not in ex
 
@@ -154,7 +154,7 @@ def test_manifest_roundtrip(enc, docs, tmp_path: Path) -> None:
     manifest = _manifest(works)
     p = tmp_path / "holdout.json"
     p.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
-    loaded = holdout.load_holdout(p)
+    loaded = load_holdout(p)
     assert [w.url for w in loaded.works] == [w.url for w in works]
     assert loaded.params.min_works == PARAMS.min_works
 

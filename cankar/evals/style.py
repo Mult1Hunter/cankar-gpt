@@ -45,6 +45,7 @@ from sklearn.model_selection import (
 from sklearn.pipeline import Pipeline, make_pipeline
 
 from cankar.core.errors import CankarError
+from cankar.core.holdout import CANKAR_AUTHOR
 from cankar.core.jsonl import iter_jsonl_docs
 from cankar.core.manifest import load_frozen
 from cankar.core.reports import generated_marker, write_report
@@ -52,10 +53,6 @@ from cankar.core.textsim import containment, shingles
 
 log = logging.getLogger("cankar.evals")
 
-# Also defined in holdout.py; a shared evals constant (with HOLDOUT/STYLE_SOURCE
-# and corpus Source.WIKIVIR) is a deferred one-string hoist, tracked with the
-# Source-promotion note in holdout.py (rule-of-two, but thin - design-review 2026-07).
-CANKAR_AUTHOR = "Ivan Cankar"
 STYLE_SOURCE = "wikivir"  # hand-transcribed prose; dLib OCR is Cankar-only -> source confound
 SEED = 20260724
 CV_FOLDS = 5
