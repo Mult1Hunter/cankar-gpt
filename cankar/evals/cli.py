@@ -13,10 +13,19 @@ from __future__ import annotations
 import argparse
 import logging
 
+import joblib
+
 from cankar.core.encoding import load_encoding
 from cankar.core.manifest import git_sha, sha256_of, utc_now_iso, write_manifest
-from cankar.core.paths import holdout_manifest, holdout_report, merged_shard
-from cankar.evals import holdout
+from cankar.core.paths import (
+    holdout_manifest,
+    holdout_report,
+    merged_shard,
+    style_manifest,
+    style_model,
+    style_report,
+)
+from cankar.evals import holdout, style
 
 log = logging.getLogger("cankar.evals")
 
@@ -55,6 +64,56 @@ def _holdout_freeze(args: argparse.Namespace) -> int:
     return 0
 
 
+def _style_train(args: argparse.Namespace) -> int:
+    corpus = merged_shard()
+    params = style.StyleParams()
+    excludes = holdout.holdout_excludes(holdout.load_holdout(holdout_manifest()))
+    data = style.load_labeled_chunks(corpus, excludes, params)
+    log.info(
+        "style data: %d chunks (%d Cankar / %d peer), %d groups, %d verse docs dropped",
+        len(data.texts),
+        int(data.labels.sum()),
+        int((1 - data.labels).sum()),
+        len(set(data.groups.tolist())),
+        data.n_verse_docs_dropped,
+    )
+    ev = style.evaluate(data, params)
+    model = style.fit_shipped(data, params)
+    out_model = style_model(args.name)
+    out_model.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(model, out_model)
+
+    manifest = style.StyleManifest(
+        corpus_sha256=sha256_of(corpus),
+        git_sha=git_sha(),
+        created_at=utc_now_iso(),
+        lib_versions=style.lib_versions(),
+        params=params,
+        n_chunks=len(data.texts),
+        n_cankar=int(data.labels.sum()),
+        n_other=int((1 - data.labels).sum()),
+        pos_rate=round(float(data.labels.mean()), 4),
+        n_groups=len(set(data.groups.tolist())),
+        n_verse_docs_dropped=data.n_verse_docs_dropped,
+        n_docs=data.n_docs,
+        metrics=ev.fold,
+        ablation=ev.ablation,
+        per_author_meanp=ev.per_author_meanp,
+        artifact_sha256=sha256_of(out_model),
+    )
+    out = write_manifest(manifest, style_manifest())
+    report = style.write_style_report(style_report(), manifest, ev)
+    log.info(
+        "froze style classifier: ROC-AUC %.3f+/-%.3f -> %s + %s + %s",
+        manifest.metrics.roc_auc_mean,
+        manifest.metrics.roc_auc_std,
+        out_model,
+        out,
+        report,
+    )
+    return 0
+
+
 def register(parser: argparse.ArgumentParser) -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -63,3 +122,7 @@ def register(parser: argparse.ArgumentParser) -> None:
     )
     p.add_argument("--name", required=True, help="tokenizer candidate (the selected one)")
     p.set_defaults(func=_holdout_freeze)
+
+    s = sub.add_parser("style-train", help="train + freeze the style classifier (ADR 0015)")
+    s.add_argument("--name", default="v1", help="artifact name suffix (checkpoints/style-<name>)")
+    s.set_defaults(func=_style_train)
