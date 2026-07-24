@@ -12,9 +12,11 @@ import logging
 from pathlib import Path
 
 from cankar.core.encoding import load_encoding
+from cankar.model.build import build_gpt
+from cankar.model.gpt import GPTConfig
 from cankar.train.checkpoint import load_checkpoint
 from cankar.train.config import TrainConfig
-from cankar.train.loop import build_model, generate_text
+from cankar.train.loop import generate_text
 
 log = logging.getLogger("cankar.train")
 
@@ -31,7 +33,7 @@ def sample_from_checkpoint(
     state = load_checkpoint(ckpt_path, device)
     config = TrainConfig.model_validate(state["config"])
     enc = load_encoding(config.tokenizer)
-    model = build_model(config, enc, device)
+    model = build_gpt(GPTConfig(**state["gptconfig"]), device)  # self-describing (ADR 0017)
     model.load_state_dict(state["model"])
     model.eval()
     return [

@@ -8,20 +8,29 @@ a held-out measurement (architect critique MF-6). This batcher instead scores
 every held-out token exactly once: each doc is BOS-prepended and tiled into
 non-overlapping T-windows, tail padded with ignore_index (-1) targets.
 
-The model is a duck type (BpbModel) - real checkpoint loading belongs in
-cankar/model/ at Phase 3, not here. Tested against a stub model now.
+The model is a duck type (BpbModel); a trained GPT satisfies it directly
+(forward(idx, targets, ..., loss_reduction) matches). bpb_on_checkpoint loads a
+train checkpoint via its self-describing gptconfig (ADR 0017) and the shared
+cankar.model builder - reading the .pt file, never importing the train stage.
 """
 
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import tiktoken
 import torch
 
+from cankar.core.encoding import bos_id, load_encoding
 from cankar.core.errors import CankarError
+from cankar.core.holdout import load_holdout
+from cankar.evals.holdout import iter_holdout_texts
 from cankar.evals.vendored_bpb import BpbModel, evaluate_bpb
+from cankar.model.build import build_gpt
+from cankar.model.gpt import GPTConfig
 
 log = logging.getLogger("cankar.evals")
 
@@ -77,8 +86,50 @@ def holdout_bpb(
     seq_len: int,
     bos_id: int,
 ) -> float:
-    """Held-out BPB for a checkpoint over the frozen held-out texts."""
+    """Held-out BPB for a model over the frozen held-out texts. Batches and
+    token_bytes are moved to the model's device (a no-op on CPU)."""
+    device = model.get_device()
     batches = build_eval_batches(texts, enc, seq_len, bos_id)
     if not batches:
         return float("inf")
-    return evaluate_bpb(model, batches, len(batches), token_bytes)
+    batches = [(x.to(device), y.to(device)) for x, y in batches]
+    return evaluate_bpb(model, batches, len(batches), token_bytes.to(device))
+
+
+@dataclass
+class BpbResult:
+    """Held-out BPB for one checkpoint (ADR 0017)."""
+
+    bpb: float
+    n_works: int
+    step: int  # the checkpoint's training step, for tracking progress
+
+
+def bpb_on_checkpoint(
+    ckpt_path: Path,
+    corpus_path: Path,
+    holdout_path: Path,
+    tokenizer_base_dir: Path,
+    device: str,
+) -> BpbResult:
+    """Load a trained GPT checkpoint and score the frozen held-out set (invariant
+    #2). The checkpoint is read as a file and rebuilt from its self-describing
+    gptconfig via the shared cankar.model builder - evals never imports the train
+    stage (ADR 0017). iter_holdout_texts re-verifies each work's content sha, so
+    a drifted corpus fails loud rather than scoring the wrong bytes."""
+    state: dict[str, Any] = torch.load(ckpt_path, map_location=device, weights_only=False)
+    if "gptconfig" not in state:
+        raise CankarError(f"{ckpt_path} predates the self-describing checkpoint (ADR 0017)")
+    model = build_gpt(GPTConfig(**state["gptconfig"]), device)
+    model.load_state_dict(state["model"])
+    model.eval()
+
+    tokenizer_name = state["config"]["tokenizer"]
+    enc = load_encoding(tokenizer_name)
+    token_bytes = load_token_bytes(tokenizer_base_dir / tokenizer_name / "token_bytes.pt")
+    manifest = load_holdout(holdout_path)
+    texts = [text for _title, text in iter_holdout_texts(corpus_path, manifest)]
+    bpb = holdout_bpb(
+        model, texts, enc, token_bytes, state["gptconfig"]["sequence_len"], bos_id(enc)
+    )
+    return BpbResult(bpb=bpb, n_works=len(texts), step=int(state["step"]))

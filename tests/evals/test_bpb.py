@@ -107,3 +107,97 @@ def test_vendored_bpb_golden() -> None:
     # (0 bytes) and -1 ignored both drop out. nats = 2.0*2, bytes = 2+3 = 5.
     expected = (2.0 * 2) / (math.log(2) * 5)
     assert evaluate_bpb(ConstModel(), [(x, y)], 1, token_bytes) == pytest.approx(expected)
+
+
+def test_bpb_on_checkpoint(enc, tmp_path, monkeypatch) -> None:
+    """Integration (ADR 0017): a self-describing checkpoint -> held-out BPB, with
+    no import of the train stage. Builds a tiny GPT, a one-work holdout keyed to a
+    tiny corpus (content-sha verified), and scores it."""
+    import dataclasses
+    import hashlib
+    import json
+
+    from cankar.core.holdout import HoldoutManifest, HoldoutParams, HoldoutWork
+    from cankar.model.gpt import GPT, GPTConfig
+
+    torch.manual_seed(0)
+    gcfg = GPTConfig(
+        sequence_len=32,
+        vocab_size=enc.n_vocab,
+        n_layer=2,
+        n_head=2,
+        n_kv_head=2,
+        n_embd=64,
+        window_pattern="L",
+    )
+    model = GPT(gcfg)
+    model.init_weights()
+    ckpt = tmp_path / "m.pt"
+    torch.save(
+        {
+            "step": 5,
+            "config": {"tokenizer": "vtest"},
+            "gptconfig": dataclasses.asdict(gcfg),
+            "model": model.state_dict(),
+            "optimizer": {},
+            "torch_rng": torch.get_rng_state(),
+        },
+        ckpt,
+    )
+
+    text = "Solnce je sijalo nad klancem in mati je gledala v dolino, tiho in otožno."
+    corpus = tmp_path / "corpus.jsonl"
+    corpus.write_text(
+        json.dumps(
+            {
+                "title": "T",
+                "url": "u/1",
+                "text": text,
+                "n_chars": len(text),
+                "source": "wikivir",
+                "author": "Ivan Cankar",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    manifest = HoldoutManifest(
+        corpus_sha256="x",
+        tokenizer_name="vtest",
+        params=HoldoutParams(),
+        cankar_total_tokens=100,
+        holdout_tokens=10,
+        holdout_fraction=0.1,
+        git_sha="x",
+        created_at="t",
+        works=[
+            HoldoutWork(
+                url="u/1",
+                title="T",
+                n_chars=len(text),
+                n_tokens=len(enc.encode_ordinary(text)),
+                content_sha256=hashlib.sha256(text.encode()).hexdigest(),
+                max_containment_elsewhere=0.0,
+            )
+        ],
+    )
+    hpath = tmp_path / "holdout.json"
+    hpath.write_text(manifest.model_dump_json(), encoding="utf-8")
+
+    monkeypatch.setattr("cankar.evals.bpb.load_encoding", lambda name: enc)
+    monkeypatch.setattr(
+        "cankar.evals.bpb.load_token_bytes", lambda p: train.token_bytes_tensor(enc)
+    )
+
+    result = bpb.bpb_on_checkpoint(ckpt, corpus, hpath, tmp_path, "cpu")
+    assert result.n_works == 1 and result.step == 5
+    assert math.isfinite(result.bpb) and result.bpb > 0
+
+
+def test_bpb_on_checkpoint_rejects_old_format(tmp_path) -> None:
+    from cankar.core.errors import CankarError
+
+    ckpt = tmp_path / "old.pt"
+    torch.save({"step": 1, "model": {}}, ckpt)  # no gptconfig
+    with pytest.raises(CankarError, match="self-describing"):
+        bpb.bpb_on_checkpoint(ckpt, tmp_path / "c.jsonl", tmp_path / "h.json", tmp_path, "cpu")

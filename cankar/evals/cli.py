@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import argparse
 import logging
+from pathlib import Path
 
 import joblib
+import torch
 
 from cankar.core.encoding import load_encoding
 from cankar.core.holdout import holdout_excludes, load_holdout
@@ -31,8 +33,9 @@ from cankar.core.paths import (
     style_manifest,
     style_model,
     style_report,
+    tokenizer_base_dir,
 )
-from cankar.evals import holdout, style
+from cankar.evals import bpb, holdout, style
 
 log = logging.getLogger("cankar.evals")
 
@@ -121,6 +124,20 @@ def _style_train(args: argparse.Namespace) -> int:
     return 0
 
 
+def _bpb(args: argparse.Namespace) -> int:
+    device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
+    result = bpb.bpb_on_checkpoint(
+        args.checkpoint, merged_shard(), holdout_manifest(), tokenizer_base_dir(), device
+    )
+    log.info(
+        "held-out BPB %.4f | %d works | checkpoint step %d (lower is better)",
+        result.bpb,
+        result.n_works,
+        result.step,
+    )
+    return 0
+
+
 def register(parser: argparse.ArgumentParser) -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -133,3 +150,8 @@ def register(parser: argparse.ArgumentParser) -> None:
     s = sub.add_parser("style-train", help="train + freeze the style classifier (ADR 0015)")
     s.add_argument("--name", default="v1", help="artifact name suffix (checkpoints/style-<name>)")
     s.set_defaults(func=_style_train)
+
+    b = sub.add_parser("bpb", help="held-out bits-per-byte for a trained checkpoint (ADR 0017)")
+    b.add_argument("--checkpoint", type=Path, required=True, help="a cankar train checkpoint (.pt)")
+    b.add_argument("--device", default=None, help="cuda/cpu (default: auto)")
+    b.set_defaults(func=_bpb)
