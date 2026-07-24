@@ -20,6 +20,7 @@ import torch
 from cankar.core.encoding import bos_id, load_encoding
 from cankar.core.errors import CankarError
 from cankar.core.paths import chunks_manifest, chunks_shard, holdout_manifest
+from cankar.model.build import build_gpt
 from cankar.model.gpt import GPT, GPTConfig
 from cankar.train.checkpoint import load_checkpoint, save_checkpoint
 from cankar.train.config import TrainConfig
@@ -38,9 +39,7 @@ def build_model(config: TrainConfig, enc: tiktoken.Encoding, device: str) -> GPT
         n_embd=config.n_embd,
         window_pattern=config.window_pattern,
     )
-    model = GPT(gcfg)
-    model.init_weights()  # non-optional: the module builds fake-init tensors (ADR 0016)
-    return model.to(device)
+    return build_gpt(gcfg, device)
 
 
 def lr_multiplier(step: int, config: TrainConfig) -> float:

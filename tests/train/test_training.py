@@ -160,3 +160,10 @@ def test_train_smoke_checkpoint_resume_sample(tmp_path, monkeypatch, enc) -> Non
 def test_build_model_wires_tokenizer_vocab(enc) -> None:
     m = build_model(_tiny_cfg(), enc, "cpu")
     assert m.config.vocab_size == enc.n_vocab  # vocab from the tokenizer, not hardcoded
+
+
+def test_sample_rejects_old_checkpoint(tmp_path) -> None:
+    ckpt = tmp_path / "old.pt"
+    torch.save({"config": {"tokenizer": "v8192"}, "model": {}}, ckpt)  # no gptconfig
+    with pytest.raises(CankarError, match="self-describing"):
+        sample_from_checkpoint(ckpt, "cpu", prompt="Bilo")
