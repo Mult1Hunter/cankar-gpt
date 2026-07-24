@@ -26,6 +26,7 @@ ROOT_ALLOWLIST = {
     "README.md",
     "ROADMAP.md",
     "SECURITY.md",
+    "THIRD_PARTY_NOTICES.md",  # MIT attribution for vendored nanochat code (ADR 0016)
     "cankar",
     "configs",
     "data",
@@ -39,7 +40,7 @@ ROOT_ALLOWLIST = {
 
 # Rule 4: a stage exists everywhere or nowhere. New stage = edit this tuple.
 STAGES = ("corpus", "tokenizer", "evals")  # evals: Phase 2.25 (ADR 0013)
-NON_STAGE_PACKAGES = {"core"}  # + "model" at Phase 3 (ADR 0007)
+NON_STAGE_PACKAGES = {"core", "model"}  # model: vendored GPT, bottom layer (ADR 0016)
 
 BANNED_BASENAMES = {"utils.py", "helpers.py", "common.py", "misc.py"}
 BANNED_PATTERNS = ("_v2.", "_new.", "_old.", "temp_", "stuff")
