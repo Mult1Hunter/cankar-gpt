@@ -10,10 +10,11 @@ tokenizer, pretraining on public-domain Slovenian literature and Wikipedia, then
 specialized in the prose voice of **Ivan Cankar** (1876-1918), with a plain->Cankar
 style-transfer stage trained on synthetic parallel data.
 
-**Status:** Phase 2.25 (evaluation harness); corpus merged, tokenized (v8192,
-142.77M tokens) and chunked. See [ROADMAP.md](ROADMAP.md) for the full
-plan, risk register, and budget (spoiler: the whole thing costs about one dinner in
-Ljubljana).
+**Status:** Phase 2.25 (evaluation harness) complete - held-out BPB set + a
+confound-audited style classifier (ROC-AUC 0.993) both frozen; corpus merged,
+tokenized (v8192, 142.77M tokens) and chunked. Next: base pretrain. See
+[ROADMAP.md](ROADMAP.md) for the full plan, risk register, and budget (spoiler:
+the whole thing costs about one dinner in Ljubljana).
 
 ## Why from scratch, when GaMS exists?
 

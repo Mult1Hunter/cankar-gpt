@@ -133,8 +133,19 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       harness (nanochat metric vendored + drift-tested, own deterministic
       batcher) ships tested against a stub; real numbers at Phase 3.
       registry/reports/eval-holdout.md
-- [ ] Style classifier (Cankar vs plain Slovene): TF-IDF + logistic regression baseline, SloBERTa if needed
-      *(next PR: prose-vs-prose, group-split by work, holdout excluded - critique A-1)*
+- [x] Style classifier (ADR 0015): char n-gram TF-IDF + balanced logistic
+      regression, Cankar prose vs 14 PD peers (prose-vs-prose, NOT vs Wikipedia
+      - critique A-1), wikivir-only, chunk-level, group-split by within-author
+      near-duplicate cluster, holdout-excluded. **ROC-AUC 0.993 +/- 0.005**
+      (grouped 5-fold). Confound audit (registry/reports/style.md, required
+      human gate): top features are punctuation rhythm + function words (VOICE),
+      not topic/source/form; funcwords-only floor 0.873 and an orthography
+      spot-check (~no AUC change) show the signal is not topic or edition
+      spelling. Frozen manifest registry/evals/style.json (versions, seed,
+      config, artifact sha - a scorer is not regenerable data). Deploy negative
+      (modern de-styled Slovene) is unseen -> `deploy_validated: PENDING Phase 6`
+      (MF-3); the "Cankar vs plain Slovene" use is validated when Phase-5 pairs
+      exist. SloBERTa still deferred - now with a measured AUC to beat.
 - [ ] LLM-judge template for meaning preservation *(deferred to Phase 6 - needs Phase-5 pairs; building now is speculative)*
 - [ ] Dev set design: 200 held-out pairs **+ 50 fresh drafts** *(deferred to Phase 5 - pairs do not exist yet)*
 - Rule: every quality claim in README/blog gets a number from this harness
