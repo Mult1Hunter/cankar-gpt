@@ -4,8 +4,8 @@ Reads the chunked corpus (ADR 0012), keeps Cankar's chunks, DROPS the held-out
 works (or the BPB eval is contaminated - invariant #2), tokenizes with the frozen
 tokenizer, and streams low-waste (x, y) batches. Each doc is BOS-prepended and
 docs are concatenated into one stream sliced into seq_len windows - windows cross
-doc boundaries (BOS marks the resets), so only the final partial window per epoch
-is dropped, vs nanochat's BOS-bestfit ~35% crop (bpb.py) which a 2.77M-token
+doc boundaries (BOS marks the resets), so only the epoch's final partial batch is
+dropped, vs nanochat's BOS-bestfit ~35% crop (bpb.py) which a 2.77M-token
 corpus cannot afford. Deterministic and resumable: the batch order is a pure
 function of (seed, epoch), so resume replays it and skips to the saved step.
 """
@@ -29,9 +29,24 @@ from cankar.core.holdout import CANKAR_AUTHOR, holdout_excludes, load_holdout
 log = logging.getLogger("cankar.train")
 
 
-def cankar_chunk_texts(chunks_path: Path, holdout_path: Path) -> list[str]:
-    """Cankar chunk texts, held-out works excluded (both closure directions)."""
-    excludes = holdout_excludes(load_holdout(holdout_path))
+def cankar_chunk_texts(
+    chunks_path: Path, holdout_path: Path, chunks_manifest_path: Path
+) -> list[str]:
+    """Cankar chunk texts, held-out works excluded (both closure directions).
+
+    Provenance guard (design-review 2026-07, invariant #2): the exclusion urls -
+    especially also_exclude_urls (the reverse-containment closure) - are only
+    valid against the corpus the holdout was frozen on. If the chunks were built
+    on a DIFFERENT corpus revision, excluding those urls can silently retain
+    excerpts of held-out works. Refuse to train on skewed artifacts."""
+    manifest = load_holdout(holdout_path)
+    excludes = holdout_excludes(manifest)
+    chunks_sha = json.loads(chunks_manifest_path.read_text(encoding="utf-8"))["corpus_sha256"]
+    if chunks_sha != manifest.corpus_sha256:
+        raise CankarError(
+            f"corpus revision skew: chunks {chunks_sha[:12]} != holdout "
+            f"{manifest.corpus_sha256[:12]}. Re-run: cankar tokenizer chunk"
+        )
     texts: list[str] = []
     dropped = 0
     if not chunks_path.exists():

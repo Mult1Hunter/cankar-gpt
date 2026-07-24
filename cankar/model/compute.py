@@ -26,6 +26,8 @@ def _detect_compute_dtype() -> torch.dtype:
     nanochat's _detect_compute_dtype so the drift test sees identical dtype."""
     env = os.environ.get("CANKAR_DTYPE")
     if env is not None:
+        if env not in _DTYPE_MAP:
+            raise ValueError(f"CANKAR_DTYPE must be one of {sorted(_DTYPE_MAP)}, got {env!r}")
         return _DTYPE_MAP[env]
     if torch.cuda.is_available() and torch.cuda.get_device_capability() >= (8, 0):
         return torch.bfloat16

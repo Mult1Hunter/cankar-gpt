@@ -141,6 +141,7 @@ def test_directory_contracts_exist() -> None:
     governed = [
         "cankar",
         "cankar/core",
+        "cankar/model",  # non-stage package, README contract enforced (ADR 0016)
         "configs",
         "docs",
         "ops",

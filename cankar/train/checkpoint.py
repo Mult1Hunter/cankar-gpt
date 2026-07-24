@@ -10,12 +10,22 @@ state, and the config (so sampling can rebuild the model without the TOML). The
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 import torch
 
 from cankar.core.errors import CankarError
 from cankar.train.config import TrainConfig
+
+
+class CheckpointState(TypedDict):
+    """The saved run state - a wrong key here silently breaks resume (ADR 0008)."""
+
+    step: int
+    config: dict[str, Any]
+    model: dict[str, Any]
+    optimizer: dict[str, Any]
+    torch_rng: torch.Tensor
 
 
 def save_checkpoint(
@@ -41,7 +51,8 @@ def save_checkpoint(
     return path
 
 
-def load_checkpoint(path: Path, device: str) -> dict[str, Any]:
+def load_checkpoint(path: Path, device: str) -> CheckpointState:
     if not path.exists():
         raise CankarError(f"no checkpoint at {path} (run: cankar train run)")
-    return torch.load(path, map_location=device, weights_only=False)
+    state: CheckpointState = torch.load(path, map_location=device, weights_only=False)
+    return state

@@ -1,8 +1,9 @@
 """Generate samples from a trained checkpoint (ADR 0016).
 
 Rebuilds the model from the config embedded in the checkpoint (no TOML needed),
-loads the weights, and autoregressively generates. Deterministic given
-(checkpoint, seed) - the "before" samples archive as (checkpoint + this command).
+loads the weights, and generates via the shared generate_text (loop.py).
+Deterministic given (checkpoint, seed) - the "before" samples archive as
+(checkpoint + this command).
 """
 
 from __future__ import annotations
@@ -10,13 +11,10 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-import torch
-
-from cankar.core.encoding import bos_id, load_encoding
-from cankar.core.errors import CankarError
+from cankar.core.encoding import load_encoding
 from cankar.train.checkpoint import load_checkpoint
 from cankar.train.config import TrainConfig
-from cankar.train.loop import build_model
+from cankar.train.loop import build_model, generate_text
 
 log = logging.getLogger("cankar.train")
 
@@ -36,18 +34,7 @@ def sample_from_checkpoint(
     model = build_model(config, enc, device)
     model.load_state_dict(state["model"])
     model.eval()
-
-    prompt_ids = enc.encode_ordinary(prompt)
-    context = [bos_id(enc), *prompt_ids]  # generate a fresh doc after BOS
-    if len(context) < 2:
-        raise CankarError("sample needs a non-empty prompt (the naive generate requires T>1)")
-    out: list[str] = []
-    for i in range(n_samples):
-        with torch.inference_mode():
-            new = list(
-                model.generate(
-                    context, max_tokens=max_tokens, temperature=temperature, top_k=top_k, seed=i
-                )
-            )
-        out.append(enc.decode(prompt_ids + new))  # drop the BOS marker from the shown text
-    return out
+    return [
+        generate_text(model, enc, prompt, max_tokens, temperature, top_k, seed=i)
+        for i in range(n_samples)
+    ]

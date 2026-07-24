@@ -18,7 +18,8 @@ import tiktoken
 import torch
 
 from cankar.core.encoding import bos_id, load_encoding
-from cankar.core.paths import chunks_shard, holdout_manifest
+from cankar.core.errors import CankarError
+from cankar.core.paths import chunks_manifest, chunks_shard, holdout_manifest
 from cankar.model.gpt import GPT, GPTConfig
 from cankar.train.checkpoint import load_checkpoint, save_checkpoint
 from cankar.train.config import TrainConfig
@@ -51,15 +52,33 @@ def lr_multiplier(step: int, config: TrainConfig) -> float:
     return config.min_lr_frac + (1 - config.min_lr_frac) * cosine
 
 
+def generate_text(
+    model: GPT,
+    enc: tiktoken.Encoding,
+    prompt: str,
+    max_tokens: int,
+    temperature: float = 1.0,
+    top_k: int = 50,
+    seed: int = 0,
+) -> str:
+    """BOS-seed the prompt, generate, render. The single generation path shared
+    by the loop's periodic sampling and `cankar train sample` (design-review)."""
+    context = [bos_id(enc), *enc.encode_ordinary(prompt)]
+    if len(context) < 2:
+        raise CankarError("sample needs a non-empty prompt (the naive generate needs T>1)")
+    new = list(
+        model.generate(
+            context, max_tokens=max_tokens, temperature=temperature, top_k=top_k, seed=seed
+        )
+    )
+    return prompt + enc.decode(new)
+
+
 def _sample(model: GPT, enc: tiktoken.Encoding, config: TrainConfig) -> str:
     model.eval()
-    context = [bos_id(enc), *enc.encode_ordinary(config.sample_prompt)]
-    with torch.inference_mode():
-        ids = list(
-            model.generate(context, max_tokens=config.sample_max_tokens, temperature=1.0, top_k=50)
-        )
+    text = generate_text(model, enc, config.sample_prompt, config.sample_max_tokens)
     model.train()
-    return config.sample_prompt + enc.decode(ids)
+    return text
 
 
 def train(config: TrainConfig, out_dir: Path, device: str, resume: bool = False) -> Path:
@@ -67,7 +86,8 @@ def train(config: TrainConfig, out_dir: Path, device: str, resume: bool = False)
     enc = load_encoding(config.tokenizer)
     model = build_model(config, enc, device)
     optimizer = model.setup_optimizer(matrix_lr=config.matrix_lr, weight_decay=config.weight_decay)
-    corpus = TokenizedCorpus.build(cankar_chunk_texts(chunks_shard(), holdout_manifest()), enc)
+    texts = cankar_chunk_texts(chunks_shard(), holdout_manifest(), chunks_manifest())
+    corpus = TokenizedCorpus.build(texts, enc)
     spe = steps_per_epoch(corpus, config.batch_size, config.seq_len)
     n_params = sum(p.numel() for p in model.parameters())
     log.info(

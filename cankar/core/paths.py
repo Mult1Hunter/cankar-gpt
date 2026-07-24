@@ -102,6 +102,12 @@ def chunks_shard() -> Path:
     return repo_root() / "data" / "chunks" / "chunks.jsonl"
 
 
+def chunks_manifest() -> Path:
+    """Committed provenance for the chunks (its corpus_sha256 must match the
+    holdout's before training - ADR 0016)."""
+    return dataset_manifest("tokenizer", "chunks")
+
+
 def chunks_report() -> Path:
     """Snapshot report (computed from gitignored data/) - see reports README."""
     return repo_root() / "registry" / "reports" / "chunks.md"

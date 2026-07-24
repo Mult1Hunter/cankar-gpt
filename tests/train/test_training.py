@@ -3,16 +3,55 @@
 
 from __future__ import annotations
 
+import json
+
+import pytest
 import torch
 
 from cankar.core.encoding import load_encoding
+from cankar.core.errors import CankarError
+from cankar.core.holdout import HoldoutManifest, HoldoutParams
 from cankar.train.checkpoint import load_checkpoint
 from cankar.train.config import TrainConfig
-from cankar.train.data import TokenizedCorpus, iter_batches
+from cankar.train.data import TokenizedCorpus, cankar_chunk_texts, iter_batches
 from cankar.train.loop import build_model, lr_multiplier, train
 from cankar.train.sample import sample_from_checkpoint
 
 TOK = "v8192"
+
+
+def _write_holdout(path, corpus_sha: str) -> None:
+    m = HoldoutManifest(
+        corpus_sha256=corpus_sha,
+        tokenizer_name=TOK,
+        params=HoldoutParams(),
+        cankar_total_tokens=1,
+        holdout_tokens=0,
+        holdout_fraction=0.0,
+        git_sha="x",
+        created_at="t",
+        works=[],
+    )
+    path.write_text(m.model_dump_json(), encoding="utf-8")
+
+
+def test_cankar_chunk_texts_rejects_corpus_skew(tmp_path) -> None:
+    """Invariant #2 (design-review): training must refuse chunks built on a
+    different corpus revision than the holdout - that can silently retain
+    excerpts of held-out works."""
+    chunks = tmp_path / "chunks.jsonl"
+    chunks.write_text(
+        json.dumps({"author": "Ivan Cankar", "url": "u/1", "text": "besedilo", "n_tokens": 1})
+        + "\n"
+    )
+    holdout = tmp_path / "holdout.json"
+    _write_holdout(holdout, "AAA")
+    manifest = tmp_path / "chunks.manifest.json"
+    manifest.write_text(json.dumps({"corpus_sha256": "BBB"}))  # skew
+    with pytest.raises(CankarError, match="corpus revision skew"):
+        cankar_chunk_texts(chunks, holdout, manifest)
+    manifest.write_text(json.dumps({"corpus_sha256": "AAA"}))  # matching -> works
+    assert cankar_chunk_texts(chunks, holdout, manifest) == ["besedilo"]
 
 
 def _tiny_cfg(**over: object) -> TrainConfig:

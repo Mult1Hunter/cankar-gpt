@@ -10,7 +10,7 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from cankar.core.errors import CankarError
 
@@ -48,7 +48,9 @@ class TrainConfig(BaseModel):
     checkpoint_every: int = 500  # steps between checkpoints (reboot-safe resume)
     sample_every: int = 500
     sample_max_tokens: int = 120
-    sample_prompt: str = "Bilo je"  # >=2 tokens: the naive generate needs T>1 (smear op)
+    # non-empty: the naive generate needs T>1 (smear op); a typo'd empty prompt
+    # should fail at config load, not at step 0 (design-review)
+    sample_prompt: str = Field("Bilo je", min_length=1)
 
 
 def load_train_config(path: Path) -> TrainConfig:
