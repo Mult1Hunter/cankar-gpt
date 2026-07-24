@@ -4,16 +4,16 @@
   "ladder_version": 2,
   "tokenizer_name": "v8192",
   "tokenizer_pkl_sha256": "cba6e4389d0d3298e55ea870dd817ed33d617fa47f1b2cb5e2feff9ae4eb6c54",
-  "corpus_sha256": "cdfea262ce5898e5b35001afb2fb8899ccb531ea1c6962c39a7f1ed917e418a2",
-  "n_docs": 126355,
+  "corpus_sha256": "d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b",
+  "n_docs": 126352,
   "n_docs_split": 16103,
-  "n_chunks": 160065,
-  "n_tokens_total": 142771409,
+  "n_chunks": 160062,
+  "n_tokens_total": 142767045,
   "seam_hard_splits": 0,
   "ladder_by_source": {
     "wikivir": {
       "paragraph": 497,
-      "pass-through": 400,
+      "pass-through": 397,
       "line": 16,
       "sentence": 15
     },
@@ -29,7 +29,7 @@
       "sentence": 5
     }
   },
-  "chunks_sha256": "f991f9246fc786521de588eda82548c20a8b8a423e40168668d924ce3ce661c5",
-  "git_sha": "52c37bc",
-  "created_at": "2026-07-23T14:28:40+00:00"
+  "chunks_sha256": "6c5fe709d24bced0dff7014e633a4a4f11277314a85a0010531a249520d1e80d",
+  "git_sha": "678a95a",
+  "created_at": "2026-07-24T13:18:46+00:00"
 }

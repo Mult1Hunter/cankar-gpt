@@ -16,6 +16,7 @@ import logging
 import joblib
 
 from cankar.core.encoding import load_encoding
+from cankar.core.holdout import holdout_excludes, load_holdout
 from cankar.core.manifest import (
     git_sha,
     library_versions,
@@ -73,7 +74,7 @@ def _holdout_freeze(args: argparse.Namespace) -> int:
 def _style_train(args: argparse.Namespace) -> int:
     corpus = merged_shard()
     params = style.StyleParams()
-    excludes = holdout.holdout_excludes(holdout.load_holdout(holdout_manifest()))
+    excludes = holdout_excludes(load_holdout(holdout_manifest()))
     data = style.load_labeled_chunks(corpus, excludes, params)
     log.info(
         "style data: %d chunks (%d Cankar / %d peer), %d groups, %d verse docs dropped",

@@ -4,11 +4,11 @@
 
 Tokenizer `v8192`, budget 2048 tokens (== Phase 3
 max_seq_len; re-chunk if that changes). Corpus sha256
-`cdfea262ce5898e5b35001afb2fb8899ccb531ea1c6962c39a7f1ed917e418a2`.
+`d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b`.
 
-- docs: 126,355 -> chunks: 160,065
+- docs: 126,352 -> chunks: 160,062
   (16,103 docs split)
-- total tokens: 142,771,409 (sum of per-chunk encodes;
+- total tokens: 142,767,045 (sum of per-chunk encodes;
   differs from token-stats.md's whole-doc encode total by seam
   re-tokenization - regex BPE is not count-preserving across splits)
 - chunk tokens p50 631, p95 2,020, max 2,048
@@ -27,4 +27,4 @@ vs catastrophic-on-literary unchunked - the chunk-to-fit rationale).
 |---|---|---|---|---|---|
 | dlib | 21 | 2 | 18 | 0 | 0 |
 | wikipedia | 109,831 | 15,081 | 469 | 5 | 0 |
-| wikivir | 400 | 497 | 16 | 15 | 0 |
+| wikivir | 397 | 497 | 16 | 15 | 0 |

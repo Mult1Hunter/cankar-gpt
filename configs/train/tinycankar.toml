@@ -1,0 +1,29 @@
+# TinyCankar (Phase 2.5, ADR 0016): a ~10M-param, Cankar-only model - the
+# "charmingly broken before" whose samples are unrecoverable later. ~2.77M
+# training tokens (held-out works excluded), ~337 steps/epoch at seq_len 512 /
+# batch 16, so 4000 steps ~= 12 epochs: a deliberate over-fit. On a 4070 Ti
+# Super this is a coffee-break run; resume with `cankar train run --resume`.
+name = "tinycankar"
+tokenizer = "v8192"
+seed = 20260724
+
+n_layer = 6
+n_embd = 256
+n_head = 4
+n_kv_head = 4
+window_pattern = "L"
+
+seq_len = 512
+batch_size = 16
+
+max_steps = 4000
+warmup_steps = 150
+min_lr_frac = 0.1
+weight_decay = 0.0
+matrix_lr = 0.002
+grad_clip = 1.0
+
+log_every = 50
+checkpoint_every = 500
+sample_every = 500
+sample_max_tokens = 120

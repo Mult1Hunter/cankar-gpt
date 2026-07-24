@@ -54,6 +54,9 @@ packages = ["cankar"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Vendored-as-port from nanochat (ADR 0016): kept byte-close to upstream so drift
+# is re-ported, not reformatted in place. compute.py is our code and stays linted.
+extend-exclude = ["cankar/model/gpt.py", "cankar/model/flash_attention.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -64,7 +67,9 @@ root_package = "cankar"
 [[tool.importlinter.contracts]]
 name = "core is the bottom layer; stages sit above it and stay independent"
 type = "layers"
-layers = ["cankar.corpus | cankar.tokenizer | cankar.evals", "cankar.core"]
+# bottom layer = core | model (both leaf: model is the vendored GPT, imports only
+# torch; ADR 0016). Stages (top, independent siblings) import the bottom layer.
+layers = ["cankar.corpus | cankar.tokenizer | cankar.evals | cankar.train", "cankar.core | cankar.model"]
 
 [tool.mypy]
 files = ["cankar"]
@@ -80,3 +85,9 @@ no_implicit_optional = true
 [[tool.mypy.overrides]]
 module = ["mwparserfromhell.*", "datasketch.*", "rustbpe.*", "sklearn.*", "scipy.*", "joblib.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Vendored-as-port from nanochat (ADR 0016): untyped upstream code, kept close to
+# source and behavior-checked by tests/model/test_gpt_drift.py, not mypy.
+module = ["cankar.model.gpt", "cankar.model.flash_attention"]
+ignore_errors = true

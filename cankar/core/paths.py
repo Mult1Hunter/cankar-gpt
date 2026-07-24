@@ -102,6 +102,12 @@ def chunks_shard() -> Path:
     return repo_root() / "data" / "chunks" / "chunks.jsonl"
 
 
+def chunks_manifest() -> Path:
+    """Committed provenance for the chunks (its corpus_sha256 must match the
+    holdout's before training - ADR 0016)."""
+    return dataset_manifest("tokenizer", "chunks")
+
+
 def chunks_report() -> Path:
     """Snapshot report (computed from gitignored data/) - see reports README."""
     return repo_root() / "registry" / "reports" / "chunks.md"
@@ -140,3 +146,13 @@ def style_model(name: str) -> Path:
     """Trained classifier artifact (joblib). Heavy binary -> checkpoints/ is
     gitignored; the manifest pins its sha256 + a reproducibility contract."""
     return repo_root() / "checkpoints" / f"style-{name}.joblib"
+
+
+def train_config(name: str) -> Path:
+    """A committed training preset (configs/train/<name>.toml, ADR 0016)."""
+    return repo_root() / "configs" / "train" / f"{name}.toml"
+
+
+def checkpoints_dir() -> Path:
+    """Trained model checkpoints (gitignored heavy artifacts)."""
+    return repo_root() / "checkpoints"

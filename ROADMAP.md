@@ -159,6 +159,14 @@ Do not build serving or the Laravel orchestrator before the styler exists.
 
 ## Phase 2.5 - TinyCankar micro-win (few hours) *(added per Agent C2)*
 
+- [x] Training stage built (ADR 0016): `cankar/model` (nanochat GPT vendored-as-
+      port, behavioral drift-test, AdamW not Muon) + `cankar/train` (Cankar-only
+      holdout-excluded loader, lean AdamW loop with warmup+cosine, tokens/sec
+      logging, reboot-safe checkpoint/resume, sampler). Frozen holdout contract
+      promoted to `core`. Verified end-to-end on the real slice (1520 chunks, 89
+      held-out dropped; loss down; ~10k tok/s CPU; sample; checkpoint; resume).
+      TinyCankar is now `cankar train run --config configs/train/tinycankar.toml`
+      *(added in-flight - ADR 0016; the ~10M GPU run + items below are next)*
 - [ ] ~10M model, Cankar-only, local or ~$1 cloud rehearsal of the full pod workflow
 - [ ] Save the charmingly broken samples (they are the "before" in the final before/after - unrecoverable later)
 - [ ] **Publish TinyCankar samples** (LinkedIn / blog teaser) - public commitment = project survival

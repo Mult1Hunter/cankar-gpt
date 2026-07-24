@@ -97,10 +97,12 @@ Act as this project's senior engineer and tech lead, not an assistant:
 
 ## Current phase
 
-Phase 2.25 - evaluation harness COMPLETE. Both instruments shipped: held-out
-BPB set FROZEN (ADR 0013: 50 Cankar works, 146k tokens, containment-closed) +
-style classifier FROZEN (ADR 0015: char n-gram voice model, ROC-AUC 0.993,
-confound-audited, deploy_validated PENDING Ph6). Deferred by design: LLM-judge
--> Ph6, pairs dev-set -> Ph5 (both need later-phase inputs). Corpus
-misattribution follow-up RESOLVED (ADR 0014). Next: Phase 2.5 (TinyCankar
-micro-win) / Phase 3 (base pretrain). (Canonical status: ROADMAP checkboxes.)
+Phase 2.5 - TinyCankar. Training stage BUILT (ADR 0016): cankar/model (nanochat
+GPT vendored-as-port, drift-tested, AdamW not Muon) + cankar/train (Cankar-only
+holdout-excluded loader, lean AdamW loop, reboot-safe resume, sampler); frozen
+holdout contract promoted to core. Verified end-to-end on the real slice. NEXT:
+the actual ~10M TinyCankar GPU run (`cankar train run --config
+configs/train/tinycankar.toml`) + sample capture + `v0.1-tinycankar` tag - a GPU
+job (this env is CPU-only). Phase 2.25 eval harness COMPLETE (ADR 0013 BPB set +
+ADR 0015 style classifier; LLM-judge->Ph6, pairs->Ph5 deferred). Corpus
+misattribution RESOLVED (ADR 0014). (Canonical status: ROADMAP checkboxes.)
