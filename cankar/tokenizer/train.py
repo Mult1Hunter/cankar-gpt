@@ -19,7 +19,6 @@ import hashlib
 import logging
 import pickle
 from collections.abc import Iterator
-from importlib.metadata import version as pkg_version
 from pathlib import Path
 
 import rustbpe
@@ -130,11 +129,3 @@ def verify_determinism(corpus_path: Path, vocab_size: int, first: tiktoken.Encod
     if not match:
         log.error("determinism check FAILED: retrain produced a different vocab")
     return match
-
-
-def library_versions() -> dict[str, str]:
-    return {
-        "rustbpe_version": pkg_version("rustbpe"),
-        "tiktoken_version": pkg_version("tiktoken"),
-        "torch_version": pkg_version("torch"),
-    }

@@ -18,6 +18,8 @@ dependencies = [
     # Phase 2.25 - eval harness (style classifier)
     "scikit-learn>=1.5",
     "joblib>=1.4",
+    "numpy>=1.26",  # imported directly; version pinned in the style manifest
+    "scipy>=1.11",  # version pinned in the style manifest (reproducibility)
 ]
 
 [project.urls]

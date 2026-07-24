@@ -32,10 +32,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
-import joblib
 import numpy as np
-import scipy
-import sklearn
 from pydantic import BaseModel
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
@@ -43,16 +40,21 @@ from sklearn.model_selection import (
     StratifiedGroupKFold,
     cross_val_predict,
     cross_val_score,
+    cross_validate,
 )
 from sklearn.pipeline import Pipeline, make_pipeline
 
 from cankar.core.errors import CankarError
 from cankar.core.jsonl import iter_jsonl_docs
+from cankar.core.manifest import load_frozen
 from cankar.core.reports import generated_marker, write_report
 from cankar.core.textsim import containment, shingles
 
 log = logging.getLogger("cankar.evals")
 
+# Also defined in holdout.py; a shared evals constant (with HOLDOUT/STYLE_SOURCE
+# and corpus Source.WIKIVIR) is a deferred one-string hoist, tracked with the
+# Source-promotion note in holdout.py (rule-of-two, but thin - design-review 2026-07).
 CANKAR_AUTHOR = "Ivan Cankar"
 STYLE_SOURCE = "wikivir"  # hand-transcribed prose; dLib OCR is Cankar-only -> source confound
 SEED = 20260724
@@ -62,6 +64,7 @@ CV_FOLDS = 5
 # Sized to the Phase-5 transfer-unit (a few sentences), not the ~8k-char work.
 CHUNK_TARGET_WORDS = 90
 CHUNK_MIN_WORDS = 30  # a trailing fragment shorter than this is dropped, not kept
+CHUNK_MAX_WORDS = 200  # a single unpunctuated sentence over this is hard word-split
 
 # Verse detector: fraction of non-blank lines with <= this many words. Calibrated
 # on committed fixtures (tests/fixtures/evals/style-verse.txt vs style-prose.txt);
@@ -129,6 +132,7 @@ class StyleParams(BaseModel):
     cv_folds: int = CV_FOLDS
     chunk_target_words: int = CHUNK_TARGET_WORDS
     chunk_min_words: int = CHUNK_MIN_WORDS
+    chunk_max_words: int = CHUNK_MAX_WORDS
     verse_short_line_max_words: int = VERSE_SHORT_LINE_MAX_WORDS
     verse_line_fraction: float = VERSE_LINE_FRACTION
     cluster_containment: float = CLUSTER_CONTAINMENT
@@ -164,9 +168,21 @@ def normalize_orthography(text: str) -> str:
     return text
 
 
+def _cap_length(chunk: str, params: StyleParams) -> list[str]:
+    """A single unpunctuated (or unsplittable) sentence can exceed the window;
+    hard word-split it into target-sized pieces so no chunk drifts far from the
+    passage-sized deploy unit. No-op on normal prose (design-review 2026-07)."""
+    words = chunk.split()
+    if len(words) <= params.chunk_max_words:
+        return [chunk]
+    t = params.chunk_target_words
+    return [" ".join(words[i : i + t]) for i in range(0, len(words), t)]
+
+
 def passage_chunks(text: str, params: StyleParams) -> list[str]:
     """Whole-sentence windows accumulated to ~chunk_target_words; a trailing
-    fragment below chunk_min_words is dropped (never a half-sentence sample)."""
+    fragment below chunk_min_words is dropped (never a half-sentence sample); a
+    lone over-long sentence is capped to the passage unit (_cap_length)."""
     sentences = _SENTENCE_SPLIT.split(text.replace("\n", " "))
     out: list[str] = []
     buf: list[str] = []
@@ -178,10 +194,10 @@ def passage_chunks(text: str, params: StyleParams) -> list[str]:
         buf.append(s)
         n += w
         if n >= params.chunk_target_words:
-            out.append(" ".join(buf))
+            out.extend(_cap_length(" ".join(buf), params))
             buf, n = [], 0
     if n >= params.chunk_min_words:
-        out.append(" ".join(buf))
+        out.extend(_cap_length(" ".join(buf), params))
     return out
 
 
@@ -255,8 +271,11 @@ def load_labeled_chunks(
     labels: list[int] = []
     groups: list[str] = []
     authors: list[str] = []
+    contributing = 0  # docs that yielded >=1 chunk (a short doc yields none)
     for d in kept:
-        for ch in passage_chunks(d["text"], params):
+        doc_chunks = passage_chunks(d["text"], params)
+        contributing += bool(doc_chunks)
+        for ch in doc_chunks:
             texts.append(ch)
             labels.append(1 if d["author"] == CANKAR_AUTHOR else 0)
             groups.append(clusters[d["url"]])
@@ -269,7 +288,7 @@ def load_labeled_chunks(
         groups=np.array(groups),
         authors=np.array(authors),
         n_verse_docs_dropped=n_verse,
-        n_docs=len(kept),
+        n_docs=contributing,
     )
 
 
@@ -377,27 +396,35 @@ def evaluate(data: LabeledChunks, params: StyleParams) -> Evaluation:
     """Group-split CV for the shipped model + the confound-audit evidence: the
     ablation across feature families, per-author confusion, and top features."""
     shipped = params.analyzer
-    auc = _auc(shipped, data, params)
-    pr = cross_val_score(
+    # shipped char_wb in ONE CV pass (roc + PR). This is the headline AND the
+    # char_wb ablation entry - a single source of truth, so the table cannot drift
+    # from the headline (design-review 2026-07).
+    cv_res = cross_validate(
         _pipeline_for(shipped, params),
         _texts_for(shipped, data.texts),
         data.labels,
         groups=data.groups,
         cv=_cv(params),
-        scoring="average_precision",
+        scoring=["roc_auc", "average_precision"],
     )
+    roc = cv_res["test_roc_auc"]
     fold = FoldMetrics(
-        roc_auc_mean=round(float(auc.mean()), 4),
-        roc_auc_std=round(float(auc.std()), 4),
-        pr_auc_mean=round(float(pr.mean()), 4),
+        roc_auc_mean=round(float(roc.mean()), 4),
+        roc_auc_std=round(float(roc.std()), 4),
+        pr_auc_mean=round(float(cv_res["test_average_precision"].mean()), 4),
         per_fold_pos_rate=_fold_positive_rates(data, params),
     )
+    top_pos, top_neg = _top_features(shipped, data, params)  # shipped audit features
 
     ablation: dict[str, float] = {}
     ablation_top: dict[str, list[str]] = {}
     for a in (Analyzer.WORD, Analyzer.CHAR_WB, Analyzer.FUNCWORDS, Analyzer.CHAR_WB_ORTHONORM):
-        ablation[a.value] = round(float(_auc(a, data, params).mean()), 4)
-        ablation_top[a.value] = _top_features(a, data, params, k=12)[0]
+        if a is shipped:  # reuse the headline pass, do not refit the shipped model
+            ablation[a.value] = fold.roc_auc_mean
+            ablation_top[a.value] = top_pos[:12]
+        else:
+            ablation[a.value] = round(float(_auc(a, data, params).mean()), 4)
+            ablation_top[a.value] = _top_features(a, data, params, k=12)[0]
 
     proba = cross_val_predict(
         _pipeline_for(shipped, params),
@@ -410,8 +437,6 @@ def evaluate(data: LabeledChunks, params: StyleParams) -> Evaluation:
     per_author = {
         a: round(float(proba[data.authors == a].mean()), 4) for a in sorted(set(data.authors))
     }
-
-    top_pos, top_neg = _top_features(shipped, data, params)
     return Evaluation(
         fold=fold,
         ablation=ablation,
@@ -460,19 +485,8 @@ class StyleManifest(BaseModel):
     deploy_validated: DeployStatus = DeployStatus.PENDING_PHASE6
 
 
-def lib_versions() -> dict[str, str]:
-    return {
-        "scikit-learn": sklearn.__version__,
-        "numpy": np.__version__,
-        "scipy": scipy.__version__,
-        "joblib": joblib.__version__,
-    }
-
-
 def load_style_manifest(path: Path) -> StyleManifest:
-    if not path.exists():
-        raise CankarError(f"style classifier not frozen: {path} (run: cankar evals style-train)")
-    return StyleManifest.model_validate_json(path.read_text())
+    return load_frozen(path, StyleManifest, "cankar evals style-train")
 
 
 # ----------------------------------------------------------------------------

@@ -16,7 +16,13 @@ import logging
 import joblib
 
 from cankar.core.encoding import load_encoding
-from cankar.core.manifest import git_sha, sha256_of, utc_now_iso, write_manifest
+from cankar.core.manifest import (
+    git_sha,
+    library_versions,
+    sha256_of,
+    utc_now_iso,
+    write_manifest,
+)
 from cankar.core.paths import (
     holdout_manifest,
     holdout_report,
@@ -87,7 +93,7 @@ def _style_train(args: argparse.Namespace) -> int:
         corpus_sha256=sha256_of(corpus),
         git_sha=git_sha(),
         created_at=utc_now_iso(),
-        lib_versions=style.lib_versions(),
+        lib_versions=library_versions("scikit-learn", "numpy", "scipy", "joblib"),
         params=params,
         n_chunks=len(data.texts),
         n_cankar=int(data.labels.sum()),

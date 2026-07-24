@@ -135,3 +135,44 @@ def test_evaluate_produces_ablation_and_audit() -> None:
     assert ev.fold.roc_auc_mean > 0.9
     assert "Ivan Cankar" in ev.per_author_meanp
     assert ev.top_pos and ev.top_neg  # audit features present
+    # SF-3: the char_wb ablation entry IS the headline - one source, no drift
+    assert ev.ablation[Analyzer.CHAR_WB.value] == ev.fold.roc_auc_mean
+
+
+def test_manifest_round_trip(tmp_path: Path) -> None:
+    """MF-4 read path (Phase 6 loads this): StyleParams.char_ngram must reload as
+    a tuple (not list) and DeployStatus must round-trip through JSON."""
+    from cankar.core.manifest import library_versions
+    from cankar.evals.style import DeployStatus, FoldMetrics, StyleManifest
+
+    m = StyleManifest(
+        corpus_sha256="x",
+        git_sha="y",
+        created_at="2026-07-24T00:00:00+00:00",
+        lib_versions=library_versions("scikit-learn"),
+        params=StyleParams(),
+        n_chunks=10,
+        n_cankar=3,
+        n_other=7,
+        pos_rate=0.3,
+        n_groups=5,
+        n_verse_docs_dropped=1,
+        n_docs=4,
+        metrics=FoldMetrics(
+            roc_auc_mean=0.9, roc_auc_std=0.01, pr_auc_mean=0.8, per_fold_pos_rate=[0.3]
+        ),
+        ablation={"char_wb": 0.9},
+        per_author_meanp={"Ivan Cankar": 0.8},
+        artifact_sha256="z",
+    )
+    p = tmp_path / "style.json"
+    p.write_text(m.model_dump_json(indent=2), encoding="utf-8")
+    loaded = style.load_style_manifest(p)
+    assert isinstance(loaded.params.char_ngram, tuple) and loaded.params.char_ngram == (3, 5)
+    assert loaded.deploy_validated is DeployStatus.PENDING_PHASE6
+    assert "scikit-learn_version" in loaded.lib_versions  # suffixed-key convention
+
+
+def test_load_style_manifest_missing_raises(tmp_path: Path) -> None:
+    with pytest.raises(CankarError, match="not frozen"):
+        style.load_style_manifest(tmp_path / "nope.json")

@@ -41,6 +41,7 @@ from pydantic import BaseModel
 
 from cankar.core.errors import CankarError
 from cankar.core.jsonl import iter_jsonl_docs
+from cankar.core.manifest import load_frozen
 from cankar.core.reports import generated_marker, write_report
 from cankar.core.textsim import containment, shingles
 
@@ -295,9 +296,7 @@ def write_holdout_report(
 
 
 def load_holdout(path: Path) -> HoldoutManifest:
-    if not path.exists():
-        raise CankarError(f"holdout not frozen: {path} (run: cankar evals holdout-freeze)")
-    return HoldoutManifest.model_validate_json(path.read_text(encoding="utf-8"))
+    return load_frozen(path, HoldoutManifest, "cankar evals holdout-freeze")
 
 
 def iter_holdout_texts(corpus_path: Path, manifest: HoldoutManifest) -> Iterable[tuple[str, str]]:
