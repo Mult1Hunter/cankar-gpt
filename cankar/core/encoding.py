@@ -14,6 +14,8 @@ import tiktoken
 from cankar.core.errors import CankarError
 from cankar.core.paths import tokenizer_dir
 
+BOS = "<|bos|>"  # the tokenizer's document-boundary special token (tokenizer.vendored)
+
 
 def load_encoding(name: str) -> tiktoken.Encoding:
     pkl = tokenizer_dir(name) / "tokenizer.pkl"
@@ -22,3 +24,9 @@ def load_encoding(name: str) -> tiktoken.Encoding:
     with pkl.open("rb") as f:
         enc: tiktoken.Encoding = pickle.load(f)
     return enc
+
+
+def bos_id(enc: tiktoken.Encoding) -> int:
+    """The <|bos|> token id. Resolved here (not by importing the tokenizer stage)
+    so evals/train stay independent siblings (bpb.py did this inline)."""
+    return enc.encode_single_token(BOS)

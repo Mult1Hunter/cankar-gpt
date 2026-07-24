@@ -39,7 +39,7 @@ ROOT_ALLOWLIST = {
 }
 
 # Rule 4: a stage exists everywhere or nowhere. New stage = edit this tuple.
-STAGES = ("corpus", "tokenizer", "evals")  # evals: Phase 2.25 (ADR 0013)
+STAGES = ("corpus", "tokenizer", "evals", "train")  # train: Phase 2.5/3 (ADR 0016)
 NON_STAGE_PACKAGES = {"core", "model"}  # model: vendored GPT, bottom layer (ADR 0016)
 
 BANNED_BASENAMES = {"utils.py", "helpers.py", "common.py", "misc.py"}

@@ -140,3 +140,13 @@ def style_model(name: str) -> Path:
     """Trained classifier artifact (joblib). Heavy binary -> checkpoints/ is
     gitignored; the manifest pins its sha256 + a reproducibility contract."""
     return repo_root() / "checkpoints" / f"style-{name}.joblib"
+
+
+def train_config(name: str) -> Path:
+    """A committed training preset (configs/train/<name>.toml, ADR 0016)."""
+    return repo_root() / "configs" / "train" / f"{name}.toml"
+
+
+def checkpoints_dir() -> Path:
+    """Trained model checkpoints (gitignored heavy artifacts)."""
+    return repo_root() / "checkpoints"
