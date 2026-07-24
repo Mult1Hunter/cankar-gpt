@@ -1,11 +1,9 @@
 """Evals-stage CLI subcommands - the ONLY argparse holder for this stage.
 
 Registered under the single `cankar` console entry (ADR 0007):
-    cankar evals holdout-freeze --name v8192
-
-The held-out BPB harness (cankar.evals.bpb) has no CLI command yet: it needs
-a trained model, which Phase 3 supplies. It ships as tested library
-scaffolding (deterministic batcher + vendored metric), wired in at Phase 3.
+    cankar evals holdout-freeze --name v8192      # freeze the held-out set (ADR 0013)
+    cankar evals style-train                       # train the style classifier (ADR 0015)
+    cankar evals bpb --checkpoint <path>           # held-out BPB for a checkpoint (ADR 0017)
 """
 
 from __future__ import annotations

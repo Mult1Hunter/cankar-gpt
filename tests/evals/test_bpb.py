@@ -110,15 +110,17 @@ def test_vendored_bpb_golden() -> None:
 
 
 def test_bpb_on_checkpoint(enc, tmp_path, monkeypatch) -> None:
-    """Integration (ADR 0017): a self-describing checkpoint -> held-out BPB, with
-    no import of the train stage. Builds a tiny GPT, a one-work holdout keyed to a
-    tiny corpus (content-sha verified), and scores it."""
-    import dataclasses
+    """Integration (ADR 0017): round-trip through the REAL train.save_checkpoint,
+    then score - so the cross-stage checkpoint format contract (evals reads keys
+    only train writes) is guarded, not just an inline dict. No evals->train import
+    in production; a test may cross stages."""
     import hashlib
     import json
 
     from cankar.core.holdout import HoldoutManifest, HoldoutParams, HoldoutWork
     from cankar.model.gpt import GPT, GPTConfig
+    from cankar.train.checkpoint import save_checkpoint
+    from cankar.train.config import TrainConfig
 
     torch.manual_seed(0)
     gcfg = GPTConfig(
@@ -133,16 +135,8 @@ def test_bpb_on_checkpoint(enc, tmp_path, monkeypatch) -> None:
     model = GPT(gcfg)
     model.init_weights()
     ckpt = tmp_path / "m.pt"
-    torch.save(
-        {
-            "step": 5,
-            "config": {"tokenizer": "vtest"},
-            "gptconfig": dataclasses.asdict(gcfg),
-            "model": model.state_dict(),
-            "optimizer": {},
-            "torch_rng": torch.get_rng_state(),
-        },
-        ckpt,
+    save_checkpoint(
+        ckpt, model, model.setup_optimizer(matrix_lr=0.002), 5, TrainConfig(tokenizer="vtest")
     )
 
     text = "Solnce je sijalo nad klancem in mati je gledala v dolino, tiho in otožno."

@@ -1,8 +1,8 @@
-"""Deterministic held-out BPB harness (ADR 0013).
+"""Deterministic held-out BPB harness (ADR 0013, 0017).
 
-The harness produces no real number until Phase 3 supplies a trained model;
-what ships now is the piece that must be right and is testable now: the eval
-BATCHER. nanochat's training dataloader (BOS-bestfit) crops ~11-35% of tokens
+`bpb_on_checkpoint` scores a trained checkpoint against the frozen held-out set;
+the load-bearing piece is the eval BATCHER, which must score every held-out token
+exactly once. nanochat's training dataloader (BOS-bestfit) crops ~11-35% of tokens
 and packs across document boundaries - non-deterministic and lossy, wrong for
 a held-out measurement (architect critique MF-6). This batcher instead scores
 every held-out token exactly once: each doc is BOS-prepended and tiled into
@@ -24,7 +24,8 @@ from typing import Any
 import tiktoken
 import torch
 
-from cankar.core.encoding import bos_id, load_encoding
+from cankar.core.encoding import bos_id as resolve_bos_id  # aliased: `bos_id` is a param name below
+from cankar.core.encoding import load_encoding
 from cankar.core.errors import CankarError
 from cankar.core.holdout import load_holdout
 from cankar.evals.holdout import iter_holdout_texts
@@ -117,7 +118,9 @@ def bpb_on_checkpoint(
     gptconfig via the shared cankar.model builder - evals never imports the train
     stage (ADR 0017). iter_holdout_texts re-verifies each work's content sha, so
     a drifted corpus fails loud rather than scoring the wrong bytes."""
-    state: dict[str, Any] = torch.load(ckpt_path, map_location=device, weights_only=False)
+    # map to CPU: only model/gptconfig/config/step are read; build_gpt + load_state_dict
+    # place the model on `device` (avoids pulling the fp32 optimizer state onto the GPU).
+    state: dict[str, Any] = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     if "gptconfig" not in state:
         raise CankarError(f"{ckpt_path} predates the self-describing checkpoint (ADR 0017)")
     model = build_gpt(GPTConfig(**state["gptconfig"]), device)
@@ -130,6 +133,6 @@ def bpb_on_checkpoint(
     manifest = load_holdout(holdout_path)
     texts = [text for _title, text in iter_holdout_texts(corpus_path, manifest)]
     bpb = holdout_bpb(
-        model, texts, enc, token_bytes, state["gptconfig"]["sequence_len"], bos_id(enc)
+        model, texts, enc, token_bytes, state["gptconfig"]["sequence_len"], resolve_bos_id(enc)
     )
     return BpbResult(bpb=bpb, n_works=len(texts), step=int(state["step"]))

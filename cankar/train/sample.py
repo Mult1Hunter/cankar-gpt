@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 
 from cankar.core.encoding import load_encoding
+from cankar.core.errors import CankarError
 from cankar.model.build import build_gpt
 from cankar.model.gpt import GPTConfig
 from cankar.train.checkpoint import load_checkpoint
@@ -31,6 +32,10 @@ def sample_from_checkpoint(
     n_samples: int = 3,
 ) -> list[str]:
     state = load_checkpoint(ckpt_path, device)
+    if (
+        "gptconfig" not in state
+    ):  # layering-forced dup of the bpb.py guard (model can't import core)
+        raise CankarError(f"{ckpt_path} predates the self-describing checkpoint (ADR 0017)")
     config = TrainConfig.model_validate(state["config"])
     enc = load_encoding(config.tokenizer)
     model = build_gpt(GPTConfig(**state["gptconfig"]), device)  # self-describing (ADR 0017)
