@@ -133,6 +133,12 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       harness (nanochat metric vendored + drift-tested, own deterministic
       batcher) ships tested against a stub; real numbers at Phase 3.
       registry/reports/eval-holdout.md
+- [x] BPB-on-checkpoint wiring (ADR 0017): `cankar evals bpb --checkpoint` loads
+      a trained checkpoint via its self-describing gptconfig (no train import) and
+      scores the frozen held-out set - so every model gets a real, comparable
+      number (invariant #2; the mechanism Phase 4's "record numbers" needs).
+      Verified: a 3-step nano scores BPB 3.57 over the 50 works *(added in-flight
+      - ADR 0017)*
 - [x] Style classifier (ADR 0015): char n-gram TF-IDF + balanced logistic
       regression, Cankar prose vs 14 PD peers (prose-vs-prose, NOT vs Wikipedia
       - critique A-1), wikivir-only, chunk-level, group-split by within-author
