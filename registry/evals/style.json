@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "corpus_sha256": "d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b",
+  "git_sha": "3da3ee4",
+  "created_at": "2026-07-24T10:29:22+00:00",
+  "tokenizer_independent": true,
+  "lib_versions": {
+    "scikit-learn": "1.9.0",
+    "numpy": "2.5.1",
+    "scipy": "1.18.0",
+    "joblib": "1.5.3"
+  },
+  "params": {
+    "source": "wikivir",
+    "seed": 20260724,
+    "cv_folds": 5,
+    "chunk_target_words": 90,
+    "chunk_min_words": 30,
+    "verse_short_line_max_words": 8,
+    "verse_line_fraction": 0.55,
+    "cluster_containment": 0.5,
+    "analyzer": "char_wb",
+    "char_ngram": [
+      3,
+      5
+    ],
+    "word_ngram": [
+      1,
+      2
+    ],
+    "min_df": 5,
+    "C": 1.0,
+    "max_iter": 2000
+  },
+  "n_chunks": 53079,
+  "n_cankar": 13232,
+  "n_other": 39847,
+  "pos_rate": 0.2493,
+  "n_groups": 479,
+  "n_verse_docs_dropped": 319,
+  "n_docs": 556,
+  "metrics": {
+    "roc_auc_mean": 0.9928,
+    "roc_auc_std": 0.0052,
+    "pr_auc_mean": 0.9852,
+    "per_fold_pos_rate": [
+      0.2496,
+      0.2493,
+      0.2492,
+      0.2492,
+      0.2492
+    ]
+  },
+  "ablation": {
+    "word": 0.9913,
+    "char_wb": 0.9928,
+    "funcwords": 0.8727,
+    "char_wb_orthonorm": 0.9927
+  },
+  "per_author_meanp": {
+    "Ivan Cankar": 0.868,
+    "Josip Murn": 0.2294,
+    "Zofka Kveder": 0.1871,
+    "Fran Govekar": 0.1423,
+    "Anton Aškerc": 0.1373,
+    "Fran Milčinski": 0.1303,
+    "Josip Stritar": 0.1087,
+    "Dragotin Kette": 0.1057,
+    "Ivan Tavčar": 0.0848,
+    "Simon Jenko": 0.0805,
+    "Josip Jurčič, Janko Kersnik": 0.0711,
+    "Janko Kersnik": 0.0677,
+    "Fran Erjavec": 0.0667,
+    "Josip Jurčič": 0.066,
+    "Janez Trdina": 0.0576,
+    "Fran Levstik": 0.0569
+  },
+  "artifact_sha256": "b313eb60c94cd65c18254dced532b87f998c917bd81342bee5cd1170abaa6bb2",
+  "deploy_validated": "PENDING Phase 6"
+}
