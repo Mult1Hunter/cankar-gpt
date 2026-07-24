@@ -97,9 +97,10 @@ Act as this project's senior engineer and tech lead, not an assistant:
 
 ## Current phase
 
-Phase 2.25 - evaluation harness (in progress). Held-out set FROZEN (ADR 0013:
-50 Cankar works, 146k tokens, containment-closed, registry/evals/holdout.json)
-+ BPB harness scaffold. Next in phase: style classifier (prose-vs-prose,
-group-split). Deferred: LLM-judge -> Ph6, pairs dev-set -> Ph5. Corpus
-misattribution follow-up RESOLVED (ADR 0014: NOT_BY_AUTHOR flag, re-merge,
-holdout re-frozen at 5.02%). (Canonical status: ROADMAP checkboxes.)
+Phase 2.25 - evaluation harness COMPLETE. Both instruments shipped: held-out
+BPB set FROZEN (ADR 0013: 50 Cankar works, 146k tokens, containment-closed) +
+style classifier FROZEN (ADR 0015: char n-gram voice model, ROC-AUC 0.993,
+confound-audited, deploy_validated PENDING Ph6). Deferred by design: LLM-judge
+-> Ph6, pairs dev-set -> Ph5 (both need later-phase inputs). Corpus
+misattribution follow-up RESOLVED (ADR 0014). Next: Phase 2.5 (TinyCankar
+micro-win) / Phase 3 (base pretrain). (Canonical status: ROADMAP checkboxes.)

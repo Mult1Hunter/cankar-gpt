@@ -19,7 +19,13 @@ from pathlib import Path
 
 from cankar.core.encoding import load_encoding
 from cankar.core.errors import CankarError
-from cankar.core.manifest import git_sha, sha256_of, utc_now_iso, write_manifest
+from cankar.core.manifest import (
+    git_sha,
+    library_versions,
+    sha256_of,
+    utc_now_iso,
+    write_manifest,
+)
 from cankar.core.paths import (
     chunks_report,
     chunks_shard,
@@ -77,7 +83,7 @@ def _train(args: argparse.Namespace) -> int:
         tokenizer_pkl_sha256=sha256_of(pkl),
         token_bytes_pt_sha256=sha256_of(tb),
         determinism_verified=deterministic,
-        **train.library_versions(),
+        **library_versions("rustbpe", "tiktoken", "torch"),
     )
     out = write_manifest(manifest, dataset_manifest("tokenizer", name))
     log.info("saved %s + %s; manifest %s", pkl, tb, out)

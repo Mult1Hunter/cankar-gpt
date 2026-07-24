@@ -11,9 +11,15 @@ import hashlib
 import json
 import subprocess
 from datetime import UTC, datetime
+from importlib.metadata import version as _pkg_version
 from pathlib import Path
+from typing import TypeVar
 
 from pydantic import BaseModel
+
+from cankar.core.errors import CankarError
+
+_M = TypeVar("_M", bound=BaseModel)
 
 
 class ShardManifest(BaseModel):
@@ -69,6 +75,22 @@ def sha256_of(path: Path) -> str:
 
 def utc_now_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def library_versions(*dists: str) -> dict[str, str]:
+    """{'<dist>_version': installed version} for provenance manifests (ADR 0003).
+    The single home for dependency-version capture across stages - the suffixed
+    key matches the tokenizer-manifest convention (design-review 2026-07)."""
+    return {f"{dist}_version": _pkg_version(dist) for dist in dists}
+
+
+def load_frozen(path: Path, model_cls: type[_M], run_hint: str) -> _M:
+    """Load a frozen provenance manifest, failing loud if it was never generated -
+    the shared shape behind the eval-stage `load_*` readers (UTF-8: non-ASCII
+    author names)."""
+    if not path.exists():
+        raise CankarError(f"{model_cls.__name__} not frozen: {path} (run: {run_hint})")
+    return model_cls.model_validate_json(path.read_text(encoding="utf-8"))
 
 
 def write_manifest(manifest: BaseModel, out: Path) -> Path:

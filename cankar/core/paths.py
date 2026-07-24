@@ -122,3 +122,21 @@ def holdout_manifest() -> Path:
 def holdout_report() -> Path:
     """Snapshot report (computed from gitignored data/) - see reports README."""
     return repo_root() / "registry" / "reports" / "eval-holdout.md"
+
+
+def style_manifest() -> Path:
+    """Frozen style-classifier provenance (ADR 0015): versions, config, seed,
+    metrics, artifact sha256, deploy-validation status. Committed, load-bearing."""
+    return repo_root() / "registry" / "evals" / "style.json"
+
+
+def style_report() -> Path:
+    """Human-audited confound report (ADR 0015: top features, ablation, per-author
+    confusion). Committed - no quality claim rides on the classifier until read."""
+    return repo_root() / "registry" / "reports" / "style.md"
+
+
+def style_model(name: str) -> Path:
+    """Trained classifier artifact (joblib). Heavy binary -> checkpoints/ is
+    gitignored; the manifest pins its sha256 + a reproducibility contract."""
+    return repo_root() / "checkpoints" / f"style-{name}.joblib"

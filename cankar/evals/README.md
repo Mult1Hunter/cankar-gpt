@@ -13,6 +13,11 @@ The measuring stick, frozen before Phase 3 so quality claims carry numbers
   real checkpoints load in `cankar/model/` at Phase 3.
 - `vendored_bpb.py` - nanochat's `evaluate_bpb` vendored verbatim (import
   blocked by torch pin), numerically drift-tested against the sibling.
-- `cli.py` - `cankar evals holdout-freeze`.
+- `style.py` - the style classifier (ADR 0015). Char n-gram TF-IDF + balanced
+  logistic regression, Cankar prose vs PD peers (prose-vs-prose, not vs
+  Wikipedia), chunk-level, group-split by content near-duplicate cluster, verse
+  filtered. Freezes a `.joblib` + provenance manifest + a human-audited confound
+  report. Content-only - no corpus-registry import (stage independence is real).
+- `cli.py` - `cankar evals holdout-freeze`, `cankar evals style-train`.
 
-Style classifier + LLM-judge are later deliverables (ROADMAP Phase 2.25 / 6).
+LLM-judge is a later deliverable (ROADMAP Phase 6, needs Phase-5 pairs).
