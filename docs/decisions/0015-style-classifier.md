@@ -36,8 +36,9 @@ sha256, metrics) + human-audited report `registry/reports/style.md`.
 - **Orthography deviation (evidence over the critique's prescribed normalizer):**
   the data says the "solnce"-class edition-spelling confound is not load-bearing
   - it is absent from the top char features, function words alone (orthography-
-  stable) separate Cankar at ROC-AUC ~0.87, and the sonce-family spot-check
-  barely moves AUC. Building a comprehensive historical normalizer to fix an
+  stable) separate Cankar at ROC-AUC ~0.87 (0.874), and the sonce-family
+  spot-check leaves AUC unchanged (0.9933 = char_wb). Building a comprehensive
+  historical normalizer to fix an
   absent confound is the ADR 0006 anti-pattern; the funcwords floor + audit are
   the neutralization instead.
 - A trained scorer is not regenerable data (MF-4): the manifest pins versions +

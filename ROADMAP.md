@@ -136,10 +136,10 @@ Do not build serving or the Laravel orchestrator before the styler exists.
 - [x] Style classifier (ADR 0015): char n-gram TF-IDF + balanced logistic
       regression, Cankar prose vs 14 PD peers (prose-vs-prose, NOT vs Wikipedia
       - critique A-1), wikivir-only, chunk-level, group-split by within-author
-      near-duplicate cluster, holdout-excluded. **ROC-AUC 0.993 +/- 0.005**
+      near-duplicate cluster, holdout-excluded. **ROC-AUC 0.993 +/- 0.004**
       (grouped 5-fold). Confound audit (registry/reports/style.md, required
       human gate): top features are punctuation rhythm + function words (VOICE),
-      not topic/source/form; funcwords-only floor 0.873 and an orthography
+      not topic/source/form; funcwords-only floor 0.874 and an orthography
       spot-check (~no AUC change) show the signal is not topic or edition
       spelling. Frozen manifest registry/evals/style.json (versions, seed,
       config, artifact sha - a scorer is not regenerable data). Deploy negative

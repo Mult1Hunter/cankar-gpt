@@ -9,9 +9,9 @@ read as VOICE (not topic/source/form) and the ablation confirms it.
 
 ## Headline (grouped 5-fold)
 
-- **ROC-AUC 0.993 +/- 0.005**, PR-AUC 0.985
-- 53,079 chunks (13,232 Cankar / 39,847 peer, pos-rate 0.249), 479 groups, 556 docs, 319 verse docs dropped
-- per-fold positive rate: [0.2496, 0.2493, 0.2492, 0.2492, 0.2492]
+- **ROC-AUC 0.993 +/- 0.004**, PR-AUC 0.986
+- 53,446 chunks (13,322 Cankar / 40,124 peer, pos-rate 0.249), 479 groups, 556 docs, 319 verse docs dropped
+- per-fold positive rate: [0.2491, 0.2495, 0.2492, 0.2494, 0.2491]
 - deploy status: **PENDING Phase 6** (train negative is 19th-c
   peer prose; the Phase-6 negative is modern de-styled Slovene - unseen here)
 
@@ -19,9 +19,9 @@ read as VOICE (not topic/source/form) and the ablation confirms it.
 
 | feature family | ROC-AUC | reads as |
 |---|--:|---|
-| word 1-2gram | 0.991 | TOPIC (vocabulary/subject) |
+| word 1-2gram | 0.992 | TOPIC (vocabulary/subject) |
 | **char_wb 3-5 (shipped)** | 0.993 | VOICE (punctuation rhythm, morphology) |
-| funcwords only | 0.873 | topic- AND orthography-robust FLOOR |
+| funcwords only | 0.874 | topic- AND orthography-robust FLOOR |
 | char_wb + orthonorm | 0.993 | sonce-family spot-check (~no change) |
 
 The funcwords floor separates Cankar on closed-class words alone (no topic,
@@ -34,8 +34,8 @@ Shipped char_wb model. Reject if +Cankar features are TOPIC (place/character
 names), SOURCE (OCR/edition tokens), or verse FORM. Expected: punctuation
 rhythm + function words + morphology.
 
-- **+Cankar**: '...', ' … ', ' ..', ' ...', '.. ', '... ', ' ... ', ' . ', 'a; ', '!“ ', ' nat', 'o; ', ' tis', ' tist', 'tist', ' bi ', 'i; ', ' - ', 'e; ', 'ob ', 'obraz', ' ob ', ' bi', 'braz', 'bi '
-- **-peers**: ' a ', 'iti', ' mož', 'mož', 'zopet', 'opet ', ' vedn', ',« ', 'opet', 'pri ', ' pri ', 'otem', 'potem', 'iti ', 'otem ', ' pote', 'ri ', 'pet ', ' seda', 'sedaj', 'dejal', 'tem ', ' dej', ' zope', ' kate'
+- **+Cankar**: ' … ', '...', ' ..', ' ...', '.. ', '... ', ' ... ', ' . ', 'a; ', '!“ ', ' nat', ' tis', ' tist', 'tist', 'o; ', ' bi ', 'i; ', ' - ', 'e; ', 'ob ', ' ob ', 'obraz', ' bi', 'braz', 'bi '
+- **-peers**: ' a ', 'iti', ' mož', 'mož', 'zopet', 'opet ', ',« ', 'opet', ' vedn', 'pri ', 'otem', 'potem', ' pri ', 'iti ', 'otem ', ' pote', 'ri ', 'pet ', ' seda', 'sedaj', 'dejal', ' dej', ' zope', 'tem ', 'zope'
 
 ## Per-author confusion (MF-5c)
 
@@ -45,21 +45,21 @@ verse - the latter would mean form is leaking.
 
 | author | mean P(Cankar) |
 |---|--:|
-| Ivan Cankar (positive) | 0.868 |
-| Josip Murn | 0.229 |
-| Zofka Kveder | 0.187 |
-| Fran Govekar | 0.142 |
-| Anton Aškerc | 0.137 |
-| Fran Milčinski | 0.130 |
-| Josip Stritar | 0.109 |
+| Ivan Cankar (positive) | 0.865 |
+| Josip Murn | 0.244 |
+| Zofka Kveder | 0.195 |
+| Anton Aškerc | 0.144 |
+| Fran Govekar | 0.139 |
+| Fran Milčinski | 0.129 |
 | Dragotin Kette | 0.106 |
-| Ivan Tavčar | 0.085 |
-| Simon Jenko | 0.081 |
-| Josip Jurčič, Janko Kersnik | 0.071 |
-| Janko Kersnik | 0.068 |
-| Fran Erjavec | 0.067 |
-| Josip Jurčič | 0.066 |
-| Janez Trdina | 0.058 |
-| Fran Levstik | 0.057 |
+| Josip Stritar | 0.100 |
+| Ivan Tavčar | 0.083 |
+| Simon Jenko | 0.079 |
+| Josip Jurčič, Janko Kersnik | 0.073 |
+| Janko Kersnik | 0.069 |
+| Josip Jurčič | 0.064 |
+| Fran Erjavec | 0.060 |
+| Janez Trdina | 0.055 |
+| Fran Levstik | 0.053 |
 
 Regenerate: `cankar evals style-train`. Provenance: registry/evals/style.json.
