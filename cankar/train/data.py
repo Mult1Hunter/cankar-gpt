@@ -1,6 +1,7 @@
-"""Cankar-only training data (ADR 0016).
+"""Training data (ADR 0016).
 
-Reads the chunked corpus (ADR 0012), keeps Cankar's chunks, DROPS the held-out
+Reads the chunked corpus (ADR 0012), selects the scope (Cankar-only or all
+sources), DROPS the held-out
 works (or the BPB eval is contaminated - invariant #2), tokenizes with the frozen
 tokenizer, and streams low-waste (x, y) batches. Each doc is BOS-prepended and
 docs are concatenated into one stream sliced into seq_len windows - windows cross
@@ -29,16 +30,23 @@ from cankar.core.holdout import CANKAR_AUTHOR, holdout_excludes, load_holdout
 log = logging.getLogger("cankar.train")
 
 
-def cankar_chunk_texts(
-    chunks_path: Path, holdout_path: Path, chunks_manifest_path: Path
+def _chunk_texts(
+    chunks_path: Path,
+    holdout_path: Path,
+    chunks_manifest_path: Path,
+    *,
+    cankar_only: bool,
 ) -> list[str]:
-    """Cankar chunk texts, held-out works excluded (both closure directions).
+    """Chunk texts with the held-out works excluded (both closure directions).
+    `cankar_only` keeps just Cankar's chunks (Phase 2.5 / Phase 4 specialization);
+    otherwise every source is kept (Phase 3 base pretrain). The frozen-holdout
+    exclusion applies EITHER WAY, so held-out Cankar works never leak into
+    training and the BPB eval stays honest (invariant #2).
 
-    Provenance guard (design-review 2026-07, invariant #2): the exclusion urls -
-    especially also_exclude_urls (the reverse-containment closure) - are only
-    valid against the corpus the holdout was frozen on. If the chunks were built
-    on a DIFFERENT corpus revision, excluding those urls can silently retain
-    excerpts of held-out works. Refuse to train on skewed artifacts."""
+    Provenance guard (design-review 2026-07): the exclusion urls are only valid
+    against the corpus the holdout was frozen on. If the chunks were built on a
+    DIFFERENT corpus revision, excluding those urls can silently retain excerpts
+    of held-out works. Refuse to train on skewed artifacts."""
     manifest = load_holdout(holdout_path)
     excludes = holdout_excludes(manifest)
     chunks_sha = json.loads(chunks_manifest_path.read_text(encoding="utf-8"))["corpus_sha256"]
@@ -47,31 +55,47 @@ def cankar_chunk_texts(
             f"corpus revision skew: chunks {chunks_sha[:12]} != holdout "
             f"{manifest.corpus_sha256[:12]}. Re-run: cankar tokenizer chunk"
         )
-    texts: list[str] = []
-    dropped = 0
     if not chunks_path.exists():
         raise CankarError(f"no chunks at {chunks_path} (run: cankar tokenizer chunk)")
+    texts: list[str] = []
+    dropped = 0
     with chunks_path.open(encoding="utf-8") as f:
         for line in f:
             if not line.strip():
                 continue
             d = json.loads(line)
-            if d.get("author") != CANKAR_AUTHOR:
+            if cankar_only and d.get("author") != CANKAR_AUTHOR:
                 continue
-            if d["url"] in excludes:
+            if d["url"] in excludes:  # held-out works, dropped in BOTH scopes
                 dropped += 1
                 continue
             texts.append(d["text"])
+    scope = "cankar" if cankar_only else "all-source"
     if not texts:
-        raise CankarError("no Cankar training chunks (run: cankar tokenizer chunk)")
-    log.info("cankar training chunks: %d (%d held-out chunks dropped)", len(texts), dropped)
+        raise CankarError(f"no {scope} training chunks (run: cankar tokenizer chunk)")
+    log.info("%s training chunks: %d (%d held-out chunks dropped)", scope, len(texts), dropped)
     return texts
+
+
+def cankar_chunk_texts(
+    chunks_path: Path, holdout_path: Path, chunks_manifest_path: Path
+) -> list[str]:
+    """Cankar-only chunk texts (Phase 2.5 TinyCankar / Phase 4 specialization)."""
+    return _chunk_texts(chunks_path, holdout_path, chunks_manifest_path, cankar_only=True)
+
+
+def all_chunk_texts(chunks_path: Path, holdout_path: Path, chunks_manifest_path: Path) -> list[str]:
+    """Full-corpus chunk texts for the Phase 3 base pretrain - every source,
+    held-out Cankar works still excluded."""
+    return _chunk_texts(chunks_path, holdout_path, chunks_manifest_path, cankar_only=False)
 
 
 @dataclass
 class TokenizedCorpus:
-    """Each doc = [BOS] + chunk tokens, cached once (tokenizing 2.77M tokens is
-    seconds); the batch stream reshuffles + concatenates these per epoch."""
+    """Each doc = [BOS] + chunk tokens, cached once. Stored int32, not int64:
+    the token ids fit (vocab ~8k), and at the full-corpus scale (142.78M tokens)
+    int64 would hold ~4x the necessary footprint across docs+stream+xs+ys. The
+    embedding needs long, so batches cast to long at the device boundary."""
 
     docs: list[np.ndarray]
     n_tokens: int
@@ -80,7 +104,7 @@ class TokenizedCorpus:
     @classmethod
     def build(cls, texts: list[str], enc: tiktoken.Encoding) -> TokenizedCorpus:
         bos = bos_id(enc)
-        docs = [np.array([bos, *enc.encode_ordinary(t)], dtype=np.int64) for t in texts]
+        docs = [np.array([bos, *enc.encode_ordinary(t)], dtype=np.int32) for t in texts]
         return cls(docs=docs, n_tokens=sum(len(d) for d in docs), bos=bos)
 
 
@@ -115,6 +139,9 @@ def iter_batches(
                 produced += 1
                 continue
             sl = slice(b * batch_size, (b + 1) * batch_size)
-            yield xs[sl].to(device), ys[sl].to(device)
+            yield (
+                xs[sl].to(device=device, dtype=torch.long),
+                ys[sl].to(device=device, dtype=torch.long),
+            )
             produced += 1
         epoch += 1
