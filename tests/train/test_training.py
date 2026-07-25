@@ -157,6 +157,24 @@ def test_train_smoke_checkpoint_resume_sample(tmp_path, monkeypatch, enc) -> Non
     assert len(samples) == 2 and all(isinstance(s, str) for s in samples)
 
 
+def test_max_hours_checkpoints_and_stops_early(tmp_path, monkeypatch, enc) -> None:
+    """The wall-clock budget (B3): the loop must checkpoint and stop before
+    max_steps, and the result is resumable."""
+    texts = [f"To je stavek {i} o življenju in mestu ob tihi reki." for i in range(40)]
+    monkeypatch.setattr("cankar.train.loop.cankar_chunk_texts", lambda *a: texts)
+    monkeypatch.setattr("cankar.train.loop.load_encoding", lambda name: enc)
+    # clock: t0 = 0, then every later reading is far past a 0.001h (3.6s) budget
+    ticks = iter([0.0] + [10_000.0] * 100)
+    monkeypatch.setattr("cankar.train.loop.time.monotonic", lambda: next(ticks))
+
+    ck = train(_tiny_cfg(max_steps=100, max_hours=0.001), tmp_path, "cpu")
+    stopped_at = load_checkpoint(ck, "cpu")["step"]
+    assert 0 < stopped_at < 100  # stopped on the budget, not at max_steps
+    # and it resumes cleanly from the budget-stop checkpoint
+    train(_tiny_cfg(max_steps=stopped_at + 2), tmp_path, "cpu", resume=True)
+    assert load_checkpoint(ck, "cpu")["step"] == stopped_at + 2
+
+
 def test_build_model_wires_tokenizer_vocab(enc) -> None:
     m = build_model(_tiny_cfg(), enc, "cpu")
     assert m.config.vocab_size == enc.n_vocab  # vocab from the tokenizer, not hardcoded

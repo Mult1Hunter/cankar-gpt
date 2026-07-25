@@ -52,6 +52,11 @@ class TrainConfig(BaseModel):
     # should fail at config load, not at step 0 (design-review)
     sample_prompt: str = Field("Bilo je", min_length=1)
 
+    # cost discipline (B3): wall-clock budget in hours. On exceeding it the loop
+    # checkpoints and stops gracefully (resume with --resume) - the guard that
+    # keeps a rented cloud pod from over-running. None = no cap.
+    max_hours: float | None = Field(default=None, gt=0)
+
 
 def load_train_config(path: Path) -> TrainConfig:
     if not path.exists():
