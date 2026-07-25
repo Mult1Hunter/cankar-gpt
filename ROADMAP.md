@@ -200,9 +200,15 @@ Do not build serving or the Laravel orchestrator before the styler exists.
 
 ## Phase 4 - Cankar specialization (hours)
 
-- [ ] Continued pretraining on Cankar-only corpus -> CankarGTP v1 (continuation model)
-- [ ] Checkpoint-progression samples ("gibberish becomes Cankar") - core blog/demo content
-- [ ] Run eval harness; record numbers
+- [x] Continued pretraining -> CankarGTP v1 (continuation model): base.pt
+      specialized on Cankar via `--init-from` (fresh optimizer, 4x-lower LR,
+      ~3 epochs). checkpoints/cankar-v1.pt. docs/cankar-v1.md
+- [x] Checkpoint-progression samples ("gibberish becomes Cankar"): the
+      three-model arc (TinyCankar word-salad -> base general Slovene -> v1
+      Cankar voice) in docs/cankar-v1.md + docs/tinycankar-samples.md
+- [x] Eval harness numbers: held-out BPB 2.2227 (TinyCankar) -> 1.5056 (base)
+      -> **1.4508 (CankarGTP v1)**. Specialization improved held-out Cankar
+      modeling without overfitting.
 - [ ] **-> MVP SHIP: static samples page + blog posts 1-2. Go/no-go for everything below.**
 
 ## Phase 5 - Synthetic style pairs (1-2 sessions, ~$5-15 API)

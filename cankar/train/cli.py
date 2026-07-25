@@ -32,7 +32,7 @@ def _run(args: argparse.Namespace) -> int:
         config = config.model_copy(update={"max_hours": args.max_hours})
     device = _device(args.device)
     log.info("training on %s", device)
-    train(config, checkpoints_dir(), device, resume=args.resume)
+    train(config, checkpoints_dir(), device, resume=args.resume, init_from=args.init_from)
     return 0
 
 
@@ -62,6 +62,12 @@ def register(parser: argparse.ArgumentParser) -> None:
         type=float,
         default=None,
         help="wall-clock budget: checkpoint+stop when reached",
+    )
+    r.add_argument(
+        "--init-from",
+        type=Path,
+        default=None,
+        help="seed model weights from a checkpoint (specialization; fresh optimizer)",
     )
     r.add_argument("--device", default=None, help="cuda/cpu (default: auto)")
     r.set_defaults(func=_run)

@@ -218,6 +218,30 @@ def test_max_hours_checkpoints_and_stops_early(tmp_path, monkeypatch, enc) -> No
     assert load_checkpoint(ck, "cpu")["step"] == stopped_at + 2
 
 
+def test_init_from_seeds_weights_and_starts_fresh(tmp_path, monkeypatch, enc) -> None:
+    """--init-from (Phase 4 specialization): loads model weights from a
+    checkpoint but starts a FRESH run (step 0, new optimizer) - not a resume."""
+    texts = [f"To je stavek {i} o mestu ob reki spomladi." for i in range(40)]
+    monkeypatch.setattr("cankar.train.loop.cankar_chunk_texts", lambda *a: texts)
+    monkeypatch.setattr("cankar.train.loop.load_encoding", lambda name: enc)
+
+    base = train(_tiny_cfg(name="base_tiny", max_steps=4), tmp_path, "cpu")
+    spec = train(_tiny_cfg(name="spec_tiny", max_steps=3), tmp_path, "cpu", init_from=base)
+    # fresh count from 0 (a resume would be 4+3=7), and a distinct checkpoint
+    assert load_checkpoint(spec, "cpu")["step"] == 3
+    assert spec != base
+
+
+def test_init_from_shape_mismatch_fails_loud(tmp_path, monkeypatch, enc) -> None:
+    """A checkpoint from a different model shape must not silently load."""
+    texts = [f"stavek {i}" for i in range(40)]
+    monkeypatch.setattr("cankar.train.loop.cankar_chunk_texts", lambda *a: texts)
+    monkeypatch.setattr("cankar.train.loop.load_encoding", lambda name: enc)
+    base = train(_tiny_cfg(name="base_tiny", max_steps=2, n_embd=64), tmp_path, "cpu")
+    with pytest.raises(RuntimeError):  # load_state_dict shape mismatch
+        train(_tiny_cfg(name="spec_tiny", max_steps=2, n_embd=128), tmp_path, "cpu", init_from=base)
+
+
 def test_corpus_scope_defaults_and_legacy_config() -> None:
     """The whole change hinges on the default: a config with no `corpus` field
     (every pre-existing preset) must load as CANKAR, unchanged."""

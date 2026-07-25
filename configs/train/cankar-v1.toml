@@ -1,0 +1,32 @@
+# CankarGTP v1 (Phase 4): Cankar specialization. Continued pretraining of the
+# base model on the Cankar-only scope - fluent Slovene from base, Cankar's voice
+# from here. Run: cankar train run --config configs/train/cankar-v1.toml \
+#   --init-from checkpoints/base.pt
+name = "cankar-v1"
+tokenizer = "v8192"
+corpus = "cankar"
+seed = 20260726
+
+# this whole shape block MUST match base.pt for --init-from (strict weight load);
+# seq_len need not match (RoPE has no positional weights)
+n_layer = 6
+n_embd = 384
+n_head = 6
+n_kv_head = 6
+window_pattern = "L"
+
+seq_len = 1024
+batch_size = 16
+
+max_steps = 500         # ~3 epochs of Cankar - sharpen voice, avoid overfit
+warmup_steps = 50
+min_lr_frac = 0.1
+weight_decay = 0.0
+matrix_lr = 0.0005      # 4x below base: adapt style without forgetting general Slovene
+grad_clip = 1.0
+max_hours = 0.5
+
+log_every = 50
+checkpoint_every = 500
+sample_every = 100
+sample_max_tokens = 90

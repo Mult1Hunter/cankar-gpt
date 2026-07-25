@@ -48,6 +48,14 @@ every source, but the frozen-holdout exclusion must still apply or the BPB eval
 - The `--max-hours` flag (cost discipline) is validated but not load-bearing
   locally; it earns its keep only if a future run does go to cloud.
 - Phase 4 (Cankar specialization) continues pretraining `checkpoints/base.pt`
-  on the `cankar` scope - the base is the foundation, not the product.
+  on the `cankar` scope - the base is the foundation, not the product. The
+  mechanism is `cankar train run --init-from <checkpoint>`, a reusable CLI
+  contract (the Phase 5/6 styler is a plausible second user):
+  - seeds ONLY the model weights (`load_state_dict`, strict=True - a shape
+    mismatch fails loud, so init_from can only load a matching architecture);
+  - a FRESH optimizer + step 0 + this config's schedule/scope (not a resume);
+  - `--resume` takes precedence when the run's own checkpoint exists, so
+    `run --init-from base.pt --resume` is an idempotent restart: seed from
+    base on the first run, continue the specialization run on any restart.
 - setup.sh and the cloud-ops cost-discipline items (terminate, delete volumes)
   are now lower priority: reserved for a future run that actually needs cloud.
