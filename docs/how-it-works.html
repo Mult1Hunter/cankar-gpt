@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How CankarGPT works - in plain words</title>
+  <meta name="description" content="A non-technical explainer: what a language model is, how they are usually trained at huge scale and cost, and how CankarGPT does it from scratch, tiny, and cheap, in Slovene.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>%F0%9F%95%AF%EF%B8%8F</text></svg>">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="How CankarGPT works - in plain words">
+  <meta property="og:description" content="What a language model is, how they are usually trained at huge scale, and how this one was built from scratch on one desktop GPU.">
+  <meta property="og:url" content="https://cankar-gpt.nextgen-solutions.xyz/how-it-works.html">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="wrap">
+  <nav class="bar">
+    <a class="mark" href="index.html" style="text-decoration:none;color:inherit">Cankar<span class="flame">GPT</span></a>
+    <span class="links">
+      <a href="index.html">Home</a>
+      <a href="https://github.com/Mult1Hunter/cankar-gpt">GitHub</a>
+      <!-- TODO: replace with the real LinkedIn profile URL before going live -->
+      <a href="https://www.linkedin.com/in/LINKEDIN-HANDLE">LinkedIn</a>
+      <a href="https://nextgen-solutions.xyz">nextgen-solutions.xyz</a>
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle light or dark theme">theme</button>
+    </span>
+  </nav>
+</div>
+
+<header class="top">
+  <div class="wrap">
+    <p class="backlink"><a href="index.html">&larr; back to the samples</a></p>
+    <p class="eyebrow" style="margin-top:var(--s3)">In plain words</p>
+    <h1 class="brand">How it works <span class="flame-mark">&#10087;</span></h1>
+    <p class="lede">No jargon required. What a language model actually is, how the famous ones are
+      built, and how this small Slovene one was made differently.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <article class="prose">
+
+    <h2>What is a language model?</h2>
+    <p>A language model is a program that has learned the patterns of a language by reading a great deal
+      of text. Give it the start of a sentence and it predicts which word is likely to come next, then
+      the next, and so on. That is really all "generating text" is: very good next-word guessing, one
+      small piece at a time.</p>
+    <p>It has no database of facts and no understanding in the human sense. It has absorbed the
+      statistical habits of a language - which words tend to follow which - and replays them.</p>
+    <div class="analogy">Think of someone who has read enormously and can finish your sentences in a
+      plausible way, without necessarily knowing whether what they are saying is true.</div>
+
+    <h2>How language models are usually built</h2>
+    <p>The famous models - the ones behind the popular chat assistants - are built at enormous scale,
+      in roughly three moves:</p>
+    <h3>1. Gather text</h3>
+    <p>Hundreds of billions, even trillions, of words scraped from the web, books, and code.</p>
+    <h3>2. Learn the pieces</h3>
+    <p>The text is chopped into small sub-word units (called <b>tokens</b>) that the model works with
+      instead of whole words.</p>
+    <h3>3. Pretraining</h3>
+    <p>The model reads all that text over and over, nudging billions of internal numbers (its
+      <b>parameters</b>) until it predicts the next piece well. This runs on thousands of specialized
+      chips for weeks and can cost millions of dollars. A final polishing step then makes the model
+      pleasant and safe to chat with.</p>
+    <p>The result is powerful and general - but expensive, mostly closed, and English-first. Slovene is
+      a rounding error in that training data.</p>
+
+    <h2>How CankarGPT is built</h2>
+    <p>This project uses the same core idea - learn a language by predicting the next piece - but
+      deliberately <b>tiny, cheap, and from scratch</b>, in Slovene:</p>
+    <ul>
+      <li>The text is <b>public-domain Slovene literature plus Slovenian Wikipedia</b> (about 73 million
+        words) - not the whole web.</li>
+      <li>The tokenizer is <b>trained from scratch on Slovene</b>, so the pieces fit Slovene words, not
+        English ones.</li>
+      <li>The model has <b>26 million parameters</b> - thousands of times smaller than frontier models.</li>
+      <li>Pretraining ran on <b>one desktop graphics card in under half an hour</b>, for essentially no
+        money.</li>
+      <li>A short <b>specialization</b> pass then taught it the prose voice of one author, Ivan Cankar.</li>
+    </ul>
+    <p>Because it is small, it does not reason or hold facts well - but it convincingly learns a
+      <b>voice</b>. The next stage turns it into a <b>styler</b>: you write plain modern Slovene, and it
+      rewrites the same meaning in Cankar's register.</p>
+    <div class="analogy">A frontier model is a vast general library staffed by thousands. <b>CankarGPT is
+      a single apprentice</b> who studied one author closely - not encyclopedic, but with a recognizable
+      hand.</div>
+
+    <h2>The two approaches, side by side</h2>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Aspect</th><th>Typical large LLM</th><th>CankarGPT</th></tr></thead>
+        <tbody>
+          <tr><td>Training text</td><td>hundreds of billions of words (the web)</td><td>~73 million words (public-domain Slovene)</td></tr>
+          <tr><td>Tokenizer</td><td>English-centric</td><td>trained from scratch on Slovene</td></tr>
+          <tr><td>Parameters</td><td class="mono">tens-hundreds of billions</td><td class="mono">26 million</td></tr>
+          <tr><td>Hardware</td><td>thousands of GPUs, weeks</td><td>one desktop GPU, ~30 minutes</td></tr>
+          <tr><td>Cost</td><td>millions of dollars</td><td class="mono">about &euro;0</td></tr>
+          <tr><td>Goal</td><td>be generally capable</td><td>learn one Slovene literary voice</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Why build it the small way?</h2>
+    <ul>
+      <li>To understand the whole pipeline by building every piece yourself, not by calling someone
+        else's API.</li>
+      <li>To show that meaningful, <b>measurable</b> results are possible on a hobby budget.</li>
+      <li>To give Slovene - and one of its greatest prose writers - a small model of its own.</li>
+    </ul>
+    <p>Everything here is measured against a frozen test set, open-source, and public from the first
+      commit. If a claim does not carry a number, it does not go on the page.</p>
+
+    <div class="readnext">
+      <a href="index.html">See the model's actual output &rarr;</a>
+      <a href="https://github.com/Mult1Hunter/cankar-gpt">Read the code &amp; full roadmap &rarr;</a>
+    </div>
+  </article>
+
+  <footer>
+    <p class="disclaim">CankarGPT is an educational AI project by
+      <a href="https://nextgen-solutions.xyz">Matic Koro&scaron;ec</a>: a machine imitation of a long-dead
+      author's style, not the author and not endorsed by anyone who studies him. Costs, numbers, and
+      samples are reported as measured.</p>
+  </footer>
+</main>
+
+<script>
+  (function () {
+    var root = document.documentElement, key = "cankargpt-theme";
+    try { var saved = localStorage.getItem(key); if (saved) root.setAttribute("data-theme", saved); } catch (e) {}
+    var btn = document.getElementById("themeToggle");
+    btn.addEventListener("click", function () {
+      var cur = root.getAttribute("data-theme");
+      if (!cur) cur = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      var next = cur === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      try { localStorage.setItem(key, next); } catch (e) {}
+    });
+  })();
+</script>
+</body>
+</html>
