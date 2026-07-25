@@ -144,6 +144,14 @@ def train(config: TrainConfig, out_dir: Path, device: str, resume: bool = False)
         if completed % config.checkpoint_every == 0 and completed < config.max_steps:
             save_checkpoint(ckpt, model, optimizer, completed, config)
             log.info("  checkpoint -> %s (step %d)", ckpt, completed)
+        if config.max_hours and (time.monotonic() - t0) / 3600 >= config.max_hours:
+            save_checkpoint(ckpt, model, optimizer, completed, config)
+            log.info(
+                "  max_hours %.3f reached at step %d -> checkpointed, stop (resume with --resume)",
+                config.max_hours,
+                completed,
+            )
+            return ckpt
 
     save_checkpoint(ckpt, model, optimizer, config.max_steps, config)
     log.info("done: %d steps -> %s", config.max_steps, ckpt)

@@ -28,6 +28,8 @@ def _device(requested: str | None) -> str:
 
 def _run(args: argparse.Namespace) -> int:
     config = load_train_config(args.config)
+    if args.max_hours is not None:
+        config = config.model_copy(update={"max_hours": args.max_hours})
     device = _device(args.device)
     log.info("training on %s", device)
     train(config, checkpoints_dir(), device, resume=args.resume)
@@ -55,6 +57,12 @@ def register(parser: argparse.ArgumentParser) -> None:
     r = sub.add_parser("run", help="train (or resume) a model from a config (ADR 0016)")
     r.add_argument("--config", type=Path, default=train_config("tinycankar"))
     r.add_argument("--resume", action="store_true", help="continue from the latest checkpoint")
+    r.add_argument(
+        "--max-hours",
+        type=float,
+        default=None,
+        help="wall-clock budget: checkpoint+stop when reached",
+    )
     r.add_argument("--device", default=None, help="cuda/cpu (default: auto)")
     r.set_defaults(func=_run)
 
