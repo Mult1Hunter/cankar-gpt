@@ -173,8 +173,10 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       held-out dropped; loss down; ~10k tok/s CPU; sample; checkpoint; resume).
       TinyCankar is now `cankar train run --config configs/train/tinycankar.toml`
       *(added in-flight - ADR 0016; the ~10M GPU run + items below are next)*
-- [ ] ~10M model, Cankar-only, local or ~$1 cloud rehearsal of the full pod workflow
-- [ ] Save the charmingly broken samples (they are the "before" in the final before/after - unrecoverable later)
+- [x] ~10M model (15.2M), Cankar-only: 4000 steps / ~12 epochs on a 4070 Ti
+      Super (~2 min), held-out BPB 2.2227 on 50 works. checkpoints/tinycankar.pt
+- [x] Save the charmingly broken samples: docs/tinycankar-samples.md
+      (step 1 word-salad -> step 4000 coherent Cankar cadence, the "before")
 - [ ] **Publish TinyCankar samples** (LinkedIn / blog teaser) - public commitment = project survival
       (repo is public from commit #1; this milestone *promotes* it)
 - [ ] Tag `v0.1-tinycankar`
