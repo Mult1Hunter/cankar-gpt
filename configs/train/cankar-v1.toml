@@ -7,7 +7,9 @@ tokenizer = "v8192"
 corpus = "cankar"
 seed = 20260726
 
-n_layer = 6         # MUST match base.pt for --init-from weight loading
+# this whole shape block MUST match base.pt for --init-from (strict weight load);
+# seq_len need not match (RoPE has no positional weights)
+n_layer = 6
 n_embd = 384
 n_head = 6
 n_kv_head = 6
