@@ -1,6 +1,6 @@
-# CankarGTP base pretrain (Phase 3): a ~25-30M-param general-Slovene model on the
+# CankarGPT base pretrain (Phase 3): a ~25-30M-param general-Slovene model on the
 # FULL corpus (all sources, held-out Cankar excluded), the foundation Phase 4
-# specializes into CankarGTP v1. Local on a 4070 Ti Super; max_hours caps spend.
+# specializes into CankarGPT v1. Local on a 4070 Ti Super; max_hours caps spend.
 name = "base"
 tokenizer = "v8192"
 corpus = "all"

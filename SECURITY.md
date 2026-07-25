@@ -1,6 +1,6 @@
 # Security Policy
 
-CankarGTP is a personal, educational ML project. There is no production service
+CankarGPT is a personal, educational ML project. There is no production service
 behind this repository (yet) - but security reports are welcome at any stage.
 
 ## Reporting a vulnerability

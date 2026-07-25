@@ -26,10 +26,11 @@ This repo is public from commit #1 - anything pushed is permanently public
    -> expect no output.
 5. **Commit-message eyeball:** `git log --all --oneline` - no client names, hostnames,
    or notes that belong in the private meta repo.
-6. **Name consistency:** `git grep -inE 'cankar-?g[p]t'` -> must be empty.
-   The project is CankarGTP / cankar-gtp everywhere (ADR 0002); this drift class
-   was caught once already, pre-commit-#1. (The `[p]` keeps this line from
-   matching itself.)
+6. **Name consistency:** `git grep -inE 'cankar-?g[t]p'` -> must be empty.
+   The project is CankarGPT / cankar-gpt everywhere (ADR 0002, amended 2026-07-25:
+   the original slug transposed the final two letters of GPT); this drift class was
+   caught once already, pre-commit-#1, and the guard now targets the old transposed
+   spelling. (The `[t]` keeps this line from matching itself.)
 
 ## On any hit
 

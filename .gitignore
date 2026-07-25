@@ -28,7 +28,7 @@ graphify-out/
 # --- claude code (machine-local) ---
 .claude/settings.local.json
 
-# --- scratch (personal notes live in ../cankar-gtp-meta; see docs) ---
+# --- scratch (personal notes live in ../cankar-gpt-meta; see docs) ---
 scratch/
 notes
 

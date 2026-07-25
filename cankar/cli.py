@@ -19,7 +19,7 @@ from cankar.train import cli as train_cli
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="cankar", description="CankarGTP pipeline CLI")
+    ap = argparse.ArgumentParser(prog="cankar", description="CankarGPT pipeline CLI")
     stages = ap.add_subparsers(dest="stage", required=True)
     corpus_cli.register(stages.add_parser("corpus", help="Phase 1: corpus acquisition"))
     tokenizer_cli.register(stages.add_parser("tokenizer", help="Phase 2: Slovene BPE"))

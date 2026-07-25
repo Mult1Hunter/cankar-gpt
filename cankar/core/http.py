@@ -13,7 +13,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-UA = "CankarGTP-corpus-builder/0.1 (+https://nextgen-solutions.xyz; educational project)"
+UA = "CankarGPT-corpus-builder/0.1 (+https://nextgen-solutions.xyz; educational project)"
 DEFAULT_SLEEP = 0.5  # polite delay between requests, seconds
 DEFAULT_TIMEOUT = 60
 DEFAULT_RETRIES = 3  # transient-failure retries with exponential backoff

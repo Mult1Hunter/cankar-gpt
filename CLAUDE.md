@@ -1,10 +1,10 @@
-# CankarGTP - Claude Code project guide
+# CankarGPT - Claude Code project guide
 
 A from-scratch Slovene micro-LLM (~40M params) trained on public-domain literature,
 specialized in Ivan Cankar's prose voice, with a plain->Cankar style-transfer stage.
 Plan, phases, risks, go/no-go gates: **ROADMAP.md** (consult when planning phase work).
 
-**This repo is PUBLIC from commit #1** (github.com/Mult1Hunter/cankar-gtp - ADR 0002).
+**This repo is PUBLIC from commit #1** (github.com/Mult1Hunter/cankar-gpt - ADR 0002).
 Everything committed is public the moment it's pushed; run the `public-hygiene` skill
 before any push.
 
@@ -84,7 +84,7 @@ Act as this project's senior engineer and tech lead, not an assistant:
 - The root allowlist and stage tuple live in
   `tests/structure/test_layout.py` - structure changes edit that file and cite
   an ADR in the same PR. Every governed dir has a <=30-line README contract.
-- Personal notes -> sibling private repo `../cankar-gtp-meta`, never here.
+- Personal notes -> sibling private repo `../cankar-gpt-meta`, never here.
 - **Placement doctrine** (official guidance, checked 2026-07): this file stays
   under 200 lines and holds only every-session rules. Stage-scoped guidance ->
   path-scoped `.claude/rules/<stage>.md` (loads only for matching files, from
