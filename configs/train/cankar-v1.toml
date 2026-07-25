@@ -1,4 +1,4 @@
-# CankarGTP v1 (Phase 4): Cankar specialization. Continued pretraining of the
+# CankarGPT v1 (Phase 4): Cankar specialization. Continued pretraining of the
 # base model on the Cankar-only scope - fluent Slovene from base, Cankar's voice
 # from here. Run: cankar train run --config configs/train/cankar-v1.toml \
 #   --init-from checkpoints/base.pt

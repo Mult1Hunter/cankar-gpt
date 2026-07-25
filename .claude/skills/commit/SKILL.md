@@ -15,7 +15,7 @@ This repo is **public** - every commit is publicly visible once pushed. Slow dow
   - anything under `data/` or `checkpoints/`, or matching
     `*.pt *.bin *.safetensors *.gguf *.onnx`
   - `.env` or any credential-bearing file (only `.env.example` belongs in git)
-  - personal notes / session scratch (those live in `../cankar-gtp-meta`)
+  - personal notes / session scratch (those live in `../cankar-gpt-meta`)
 
   (This list deliberately mirrors `.gitignore` - defense-in-depth against
   force-adds. When one changes, sync the other.)

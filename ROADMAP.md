@@ -1,4 +1,4 @@
-# CankarGTP - Roadmap
+# CankarGPT - Roadmap
 
 > A from-scratch Slovene micro-LLM (~40M params) trained on public-domain literature,
 > specialized in Ivan Cankar's voice, extended with plain->Cankar style transfer via
@@ -6,7 +6,7 @@
 >
 > **Hardware:** local RTX 4070 Ti Super 16GB (dev, tokenization, TinyCankar) + rented cloud GPU (long runs, ~$10-40 total)
 > **Stack:** Python/uv + PyTorch + nanochat (scaled down), Claude Batch API, FastAPI, Laravel orchestrator, Astro demo page
-> **Repo policy:** single public monorepo from commit #1 (github.com/Mult1Hunter/cankar-gtp - ADR 0002). Public-repo
+> **Repo policy:** single public monorepo from commit #1 (github.com/Mult1Hunter/cankar-gpt - ADR 0002). Public-repo
 > hygiene (.gitignore, .env.example, gitleaks pre-commit + CI, weights/data on HF Hub or R2 - never in git, milestone tags).
 
 ---
@@ -210,14 +210,14 @@ Do not build serving or the Laravel orchestrator before the styler exists.
 
 ## Phase 4 - Cankar specialization (hours)
 
-- [x] Continued pretraining -> CankarGTP v1 (continuation model): base.pt
+- [x] Continued pretraining -> CankarGPT v1 (continuation model): base.pt
       specialized on Cankar via `--init-from` (fresh optimizer, 4x-lower LR,
       ~3 epochs). checkpoints/cankar-v1.pt. docs/cankar-v1.md
 - [x] Checkpoint-progression samples ("gibberish becomes Cankar"): the
       three-model arc (TinyCankar word-salad -> base general Slovene -> v1
       Cankar voice) in docs/cankar-v1.md + docs/tinycankar-samples.md
 - [x] Eval harness numbers: held-out BPB 2.2227 (TinyCankar) -> 1.5056 (base)
-      -> **1.4508 (CankarGTP v1)**. Specialization improved held-out Cankar
+      -> **1.4508 (CankarGPT v1)**. Specialization improved held-out Cankar
       modeling without overfitting.
 - [ ] **-> MVP SHIP: static samples page + blog posts 1-2. Go/no-go for everything below.**
 
@@ -335,6 +335,6 @@ human workflow (setup, commit types, PR rules): **CONTRIBUTING.md**, pre-push
 procedure: `public-hygiene` skill, staged-content rules: `commit` skill.
 
 Private material (notes, plans, deploy inventory, progress files) lives in the sibling
-private repo `../cankar-gtp-meta` - never here. Optional symlink
-`notes -> ../cankar-gtp-meta/notes` (gitignored); personal ignores that shouldn't
+private repo `../cankar-gpt-meta` - never here. Optional symlink
+`notes -> ../cankar-gpt-meta/notes` (gitignored); personal ignores that shouldn't
 pollute the shared `.gitignore` go in `.git/info/exclude`.

@@ -1,5 +1,5 @@
 [project]
-name = "cankar-gtp"
+name = "cankar-gpt"
 version = "0.1.0"
 description = "A from-scratch Slovene micro-LLM in the voice of Ivan Cankar"
 authors = [{ name = "Matic Korošec" }]
@@ -24,7 +24,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://nextgen-solutions.xyz"
-Repository = "https://github.com/Mult1Hunter/cankar-gtp"
+Repository = "https://github.com/Mult1Hunter/cankar-gpt"
 
 [project.scripts]
 cankar = "cankar.cli:main"

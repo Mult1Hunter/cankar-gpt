@@ -1,6 +1,6 @@
-# CankarGTP
+# CankarGPT
 
-[![CI](https://github.com/Mult1Hunter/cankar-gtp/actions/workflows/ci.yml/badge.svg)](https://github.com/Mult1Hunter/cankar-gtp/actions/workflows/ci.yml)
+[![CI](https://github.com/Mult1Hunter/cankar-gpt/actions/workflows/ci.yml/badge.svg)](https://github.com/Mult1Hunter/cankar-gpt/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > *Mati, ali je model že konvergiral?*

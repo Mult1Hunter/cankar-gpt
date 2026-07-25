@@ -1,6 +1,6 @@
-# CankarGTP v1 (Phase 4)
+# CankarGPT v1 (Phase 4)
 
-CankarGTP v1 is the Phase-3 base model specialized on Cankar. It is
+CankarGPT v1 is the Phase-3 base model specialized on Cankar. It is
 `checkpoints/base.pt` (26.3M params, general Slovene) continued for ~3 gentle
 epochs on the Cankar-only scope via `--init-from` - fluent Slovene from the
 base, Cankar's voice from the specialization. The `matrix_lr` is 4x below the
@@ -17,7 +17,7 @@ training set - verified, ADR 0018). Lower is better.
 |---|--:|---|--:|
 | TinyCankar | 15M | Cankar-only, from scratch (Phase 2.5) | 2.2227 |
 | base | 26M | full corpus (Phase 3) | 1.5056 |
-| **CankarGTP v1** | 26M | base + Cankar specialization (Phase 4) | **1.4508** |
+| **CankarGPT v1** | 26M | base + Cankar specialization (Phase 4) | **1.4508** |
 
 More data cut BPB 32% (TinyCankar -> base); specialization cut another 3.6%
 (base -> v1) WITHOUT overfitting the held-out works - the specialization sharpens
@@ -32,7 +32,7 @@ Prompt `Na cesti je` ("On the road there is"), temperature 0.9:
 > Na cesti je bil tudi trgovec s krvjo in se je še bolj zmenil za trg pa je bil
 > jako dobro in je šel čez travnike ter so ga imeli ljudje iz hiše.
 
-**CankarGTP v1** (Cankar-specialized) - narrative, a named character, intimate
+**CankarGPT v1** (Cankar-specialized) - narrative, a named character, intimate
 physical detail and cadence:
 
 > Na cesti je sedela Marica, prijazno začudena, tako majhna in prijazna, da je
@@ -44,7 +44,7 @@ whole point of the specialization stage.
 
 ## What this is (and is not)
 
-- CankarGTP v1 is the model the MVP samples page and blog will demo. It writes
+- CankarGPT v1 is the model the MVP samples page and blog will demo. It writes
   fluent, Cankar-flavoured Slovene continuations from a prompt.
 - It is a continuation model, not yet the plain->Cankar STYLER (Phase 5-6): it
   does not take a modern-Slovene draft and restyle it - that needs the synthetic

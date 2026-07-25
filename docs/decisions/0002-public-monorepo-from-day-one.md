@@ -11,8 +11,8 @@ demo site, a Laravel orchestrator - and needed a decided organization before com
 
 ## Decision
 
-**Public from commit #1**, on a personal account (github.com/Mult1Hunter/cankar-gtp),
-as a **single monorepo**. Naming aligned to **cankar-gtp / CankarGTP** everywhere.
+**Public from commit #1**, on a personal account (github.com/Mult1Hunter/cankar-gpt),
+as a **single monorepo**. Naming aligned to **cankar-gpt / CankarGPT** everywhere.
 Layout is document-first - directories are created when their phase starts:
 
 | Path | Contents | Arrives |
@@ -45,3 +45,19 @@ committed Claude skills (`commit`, `public-hygiene`, `adr`).
   (promotion, not exposure).
 - PR-based flow adds ceremony for a solo dev - accepted in exchange for CI gating
   and reviewable history.
+
+## Amendment (2026-07-25): renamed to cankar-gpt
+
+The project shipped under a slug that transposed the final two letters of GPT - a
+typo that had been present since commit #1 and, worse, mechanically ratified: the
+brand, this ADR, and the `public-hygiene` name guard all enforced the wrong order.
+The earlier note that "the naming was deliberate" was a rationalization of the slip.
+
+Renamed to **cankar-gpt / CankarGPT** everywhere. Concretely: the GitHub repo was
+renamed (the old URL redirects); every in-repo reference was updated in one pass;
+the `public-hygiene` name-consistency guard was inverted to target the old
+transposed spelling instead; and `pyproject.toml`'s distribution name moved to
+`cankar-gpt`. The Python import package (`cankar`) and the `uv run cankar` entry
+point are unchanged, so no code imports break. The private sibling folder was
+renamed to `../cankar-gpt-meta` to stay consistent. Done before any public launch,
+while the audience was still zero.
