@@ -181,17 +181,19 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       (repo is public from commit #1; this milestone *promotes* it)
 - [ ] Tag `v0.1-tinycankar`
 
-## Phase 3 - Base pretrain (cloud, ~$10-15)
+## Phase 3 - Base pretrain (ran LOCAL, $0 - ADR 0018)
 
-- [ ] Adapt corpus into nanochat's data pipeline (real work - own deliverable, per B1; budget a full session)
-- [ ] **Calibration first (B3):** 30-min tokens/sec measurement + tested checkpoint-resume *before* the long run
+- [x] Full-corpus training data (B1, ADR 0018): `CorpusScope` config selects
+      cankar|all; the `all` scope keeps every source with the frozen-holdout
+      exclusion still applied (tested). 142.78M train tokens / 159,973 chunks.
+- [x] **Calibration (B3):** 264k tok/s measured on the 4070 Ti Super;
+      checkpoint-resume tested (test_max_hours + the run itself)
 - [ ] `setup.sh`: pod -> clone -> deps -> pull data (HF/R2) -> tmux train -> checkpoint-sync loop. Target: <5 min to training, unattended
 - [ ] Cost discipline: terminate (not stop), delete volumes after sync, `--max-hours` self-terminating flag
-- [ ] **Model size (revised from measured data, 2026-07):** ~120M-token budget makes
-      the original 40-50M target data-constrained (Chinchilla single-epoch optimal
-      for 120M tok ≈ 6M params; ~4 epochs ≈ 24M). Target **~15-30M params** and let
-      the eval harness decide whether scaling up lowers held-out perplexity or just
-      burns GPU. Specialization + Phase-5 synthetic pairs add effective Cankar signal.
+- [x] **Model size confirmed (2026-07):** 26.3M params (n_layer 6, n_embd 384),
+      in the ~15-30M honest range for a 142.78M-token budget (Chinchilla ~4
+      epochs ≈ 24M). Ran 3 epochs, loss 9.0 -> 2.8. **Base pretrain DONE:**
+      held-out BPB **1.5056** (vs TinyCankar 2.2227, -32%). checkpoints/base.pt.
 - [ ] bf16, flash attention; W&B free tier for live loss curves (blog artifact)
 - [ ] Model config: RunPod 4090 for experiments, A100 for the final run
 - Reference: total compute ~ 50-100x *less* than nanochat's $100 speedrun; budget anxiety = zero
