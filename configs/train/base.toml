@@ -1,0 +1,29 @@
+# CankarGTP base pretrain (Phase 3): a ~25-30M-param general-Slovene model on the
+# FULL corpus (all sources, held-out Cankar excluded), the foundation Phase 4
+# specializes into CankarGTP v1. Local on a 4070 Ti Super; max_hours caps spend.
+name = "base"
+tokenizer = "v8192"
+corpus = "all"
+seed = 20260725
+
+n_layer = 6
+n_embd = 384
+n_head = 6
+n_kv_head = 6
+window_pattern = "L"
+
+seq_len = 1024
+batch_size = 16
+
+max_steps = 26000       # ~3 epochs over 142.78M tokens
+warmup_steps = 500
+min_lr_frac = 0.1
+weight_decay = 0.0
+matrix_lr = 0.002
+grad_clip = 1.0
+max_hours = 1.5
+
+log_every = 100
+checkpoint_every = 2000
+sample_every = 2000
+sample_max_tokens = 100

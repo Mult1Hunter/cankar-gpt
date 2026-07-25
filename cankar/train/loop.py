@@ -23,8 +23,14 @@ from cankar.core.paths import chunks_manifest, chunks_shard, holdout_manifest
 from cankar.model.build import build_gpt
 from cankar.model.gpt import GPT, GPTConfig
 from cankar.train.checkpoint import load_checkpoint, save_checkpoint
-from cankar.train.config import TrainConfig
-from cankar.train.data import TokenizedCorpus, cankar_chunk_texts, iter_batches, steps_per_epoch
+from cankar.train.config import CorpusScope, TrainConfig
+from cankar.train.data import (
+    TokenizedCorpus,
+    all_chunk_texts,
+    cankar_chunk_texts,
+    iter_batches,
+    steps_per_epoch,
+)
 
 log = logging.getLogger("cankar.train")
 
@@ -85,7 +91,8 @@ def train(config: TrainConfig, out_dir: Path, device: str, resume: bool = False)
     enc = load_encoding(config.tokenizer)
     model = build_model(config, enc, device)
     optimizer = model.setup_optimizer(matrix_lr=config.matrix_lr, weight_decay=config.weight_decay)
-    texts = cankar_chunk_texts(chunks_shard(), holdout_manifest(), chunks_manifest())
+    loader = all_chunk_texts if config.corpus is CorpusScope.ALL else cankar_chunk_texts
+    texts = loader(chunks_shard(), holdout_manifest(), chunks_manifest())
     corpus = TokenizedCorpus.build(texts, enc)
     spe = steps_per_epoch(corpus, config.batch_size, config.seq_len)
     n_params = sum(p.numel() for p in model.parameters())

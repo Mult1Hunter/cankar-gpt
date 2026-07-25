@@ -15,7 +15,12 @@ from cankar.core.holdout import HoldoutManifest, HoldoutParams
 from cankar.tokenizer import train as tok_train
 from cankar.train.checkpoint import load_checkpoint
 from cankar.train.config import TrainConfig
-from cankar.train.data import TokenizedCorpus, cankar_chunk_texts, iter_batches
+from cankar.train.data import (
+    TokenizedCorpus,
+    all_chunk_texts,
+    cankar_chunk_texts,
+    iter_batches,
+)
 from cankar.train.loop import build_model, lr_multiplier, train
 from cankar.train.sample import sample_from_checkpoint
 
@@ -82,6 +87,44 @@ def test_cankar_chunk_texts_rejects_corpus_skew(tmp_path) -> None:
         cankar_chunk_texts(chunks, holdout, manifest)
     manifest.write_text(json.dumps({"corpus_sha256": "AAA"}))  # matching -> works
     assert cankar_chunk_texts(chunks, holdout, manifest) == ["besedilo"]
+
+
+def test_all_chunk_texts_keeps_all_sources_but_drops_holdout(tmp_path) -> None:
+    """The base-pretrain scope keeps EVERY source (Cankar, other authors,
+    Wikipedia author=None) but STILL drops held-out Cankar works, so the BPB
+    eval stays honest (invariant #2)."""
+    chunks = tmp_path / "chunks.jsonl"
+    chunks.write_text(
+        "\n".join(
+            json.dumps(d)
+            for d in (
+                {"author": "Ivan Cankar", "url": "c/1", "text": "cankar", "n_tokens": 1},
+                {"author": "Fran Levstik", "url": "l/1", "text": "levstik", "n_tokens": 1},
+                {"author": None, "url": "w/1", "text": "wikipedia", "n_tokens": 1},
+                {"author": "Ivan Cankar", "url": "c/held", "text": "heldout", "n_tokens": 1},
+            )
+        )
+        + "\n"
+    )
+    holdout = tmp_path / "holdout.json"
+    m = HoldoutManifest(
+        corpus_sha256="AAA",
+        tokenizer_name="v8192",
+        params=HoldoutParams(),
+        cankar_total_tokens=1,
+        holdout_tokens=0,
+        holdout_fraction=0.0,
+        git_sha="x",
+        created_at="t",
+        works=[],
+        also_exclude_urls=["c/held"],
+    )
+    holdout.write_text(m.model_dump_json(), encoding="utf-8")
+    manifest = tmp_path / "chunks.manifest.json"
+    manifest.write_text(json.dumps({"corpus_sha256": "AAA"}))
+    texts = all_chunk_texts(chunks, holdout, manifest)
+    assert set(texts) == {"cankar", "levstik", "wikipedia"}  # all sources kept
+    assert "heldout" not in texts  # held-out Cankar work dropped even in all-scope
 
 
 def test_lr_multiplier_warmup_then_cosine() -> None:

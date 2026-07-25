@@ -8,6 +8,7 @@ configs/train/.
 from __future__ import annotations
 
 import tomllib
+from enum import StrEnum
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -15,11 +16,19 @@ from pydantic import BaseModel, Field
 from cankar.core.errors import CankarError
 
 
+class CorpusScope(StrEnum):
+    """Which chunks a run trains on (ADR 0008: closed set -> StrEnum)."""
+
+    CANKAR = "cankar"  # Cankar-only (Phase 2.5 TinyCankar / Phase 4 specialization)
+    ALL = "all"  # every source, held-out excluded (Phase 3 base pretrain)
+
+
 class TrainConfig(BaseModel):
     """Everything a run needs. Field names map onto GPTConfig / AdamW / the loop."""
 
     name: str = "tinycankar"
     tokenizer: str = "v8192"  # data/tokenizer/<name>/ (frozen; ADR 0011)
+    corpus: CorpusScope = CorpusScope.CANKAR  # training scope; held-out excluded either way
     seed: int = 20260724
 
     # model shape (-> cankar.model.gpt.GPTConfig). window_pattern "L" = full
