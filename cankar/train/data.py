@@ -92,8 +92,10 @@ def all_chunk_texts(chunks_path: Path, holdout_path: Path, chunks_manifest_path:
 
 @dataclass
 class TokenizedCorpus:
-    """Each doc = [BOS] + chunk tokens, cached once (tokenizing 2.77M tokens is
-    seconds); the batch stream reshuffles + concatenates these per epoch."""
+    """Each doc = [BOS] + chunk tokens, cached once. Stored int32, not int64:
+    the token ids fit (vocab ~8k), and at the full-corpus scale (142.78M tokens)
+    int64 would hold ~4x the necessary footprint across docs+stream+xs+ys. The
+    embedding needs long, so batches cast to long at the device boundary."""
 
     docs: list[np.ndarray]
     n_tokens: int
@@ -102,7 +104,7 @@ class TokenizedCorpus:
     @classmethod
     def build(cls, texts: list[str], enc: tiktoken.Encoding) -> TokenizedCorpus:
         bos = bos_id(enc)
-        docs = [np.array([bos, *enc.encode_ordinary(t)], dtype=np.int64) for t in texts]
+        docs = [np.array([bos, *enc.encode_ordinary(t)], dtype=np.int32) for t in texts]
         return cls(docs=docs, n_tokens=sum(len(d) for d in docs), bos=bos)
 
 
@@ -137,6 +139,9 @@ def iter_batches(
                 produced += 1
                 continue
             sl = slice(b * batch_size, (b + 1) * batch_size)
-            yield xs[sl].to(device), ys[sl].to(device)
+            yield (
+                xs[sl].to(device=device, dtype=torch.long),
+                ys[sl].to(device=device, dtype=torch.long),
+            )
             produced += 1
         epoch += 1

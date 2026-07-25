@@ -218,6 +218,34 @@ def test_max_hours_checkpoints_and_stops_early(tmp_path, monkeypatch, enc) -> No
     assert load_checkpoint(ck, "cpu")["step"] == stopped_at + 2
 
 
+def test_corpus_scope_defaults_and_legacy_config() -> None:
+    """The whole change hinges on the default: a config with no `corpus` field
+    (every pre-existing preset) must load as CANKAR, unchanged."""
+    from cankar.core.paths import train_config
+    from cankar.train.config import CorpusScope, load_train_config
+
+    assert TrainConfig().corpus is CorpusScope.CANKAR
+    assert load_train_config(train_config("tinycankar")).corpus is CorpusScope.CANKAR
+
+
+def test_loop_selects_loader_by_corpus_scope(tmp_path, monkeypatch, enc) -> None:
+    """config.corpus routes to the right loader (the base-pretrain wiring)."""
+    from cankar.train.config import CorpusScope
+
+    monkeypatch.setattr("cankar.train.loop.load_encoding", lambda name: enc)
+    texts = [f"To je stavek {i} o mestu ob reki." for i in range(30)]
+    called: dict[str, bool] = {}
+    monkeypatch.setattr(
+        "cankar.train.loop.all_chunk_texts", lambda *a: (called.setdefault("all", True), texts)[1]
+    )
+    monkeypatch.setattr(
+        "cankar.train.loop.cankar_chunk_texts",
+        lambda *a: (called.setdefault("cankar", True), texts)[1],
+    )
+    train(_tiny_cfg(max_steps=2, corpus=CorpusScope.ALL), tmp_path, "cpu")
+    assert called == {"all": True}  # ALL -> all_chunk_texts; cankar loader untouched
+
+
 def test_build_model_wires_tokenizer_vocab(enc) -> None:
     m = build_model(_tiny_cfg(), enc, "cpu")
     assert m.config.vocab_size == enc.n_vocab  # vocab from the tokenizer, not hardcoded

@@ -41,7 +41,7 @@ class TrainConfig(BaseModel):
     window_pattern: str = "L"
 
     # data / batching
-    seq_len: int = 512  # training window; must be <= the chunker's 2048 (ADR 0012)
+    seq_len: int = Field(512, le=2048)  # training window; <= the chunker's max chunk (ADR 0012)
     batch_size: int = 16
 
     # optimizer + schedule (LRs are scaled by 1/sqrt(dmodel) inside setup_optimizer)

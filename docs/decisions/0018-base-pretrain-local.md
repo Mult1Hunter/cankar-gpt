@@ -23,6 +23,12 @@ every source, but the frozen-holdout exclusion must still apply or the BPB eval
    Cankar's chunks (Phase 2.5 / Phase 4). The held-out works are dropped in
    BOTH scopes - the exclusion is not tied to the author filter (test pins it).
 
+   **Closure verification (design-review, invariant #2):** the held-out set was
+   frozen over Cankar docs, but the `all` scope trains on every source. Verified
+   directly: containment of all 50 held-out works against the full 126,302-doc
+   training corpus (both directions) = **max 0.0000, zero hits >= 0.80**. No
+   held-out work is reproduced in any source, so the `all`-scope BPB is honest.
+
 2. **Run Phase 3 locally, not cloud.** At 142.78M tokens a ~26M model does 3
    epochs in ~27 minutes on the 4070 Ti Super - the cloud spend buys nothing.
    `configs/train/base.toml`: n_layer 6, n_embd 384 (26.3M params), seq_len
