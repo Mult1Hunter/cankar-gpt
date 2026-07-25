@@ -86,7 +86,13 @@ def _sample(model: GPT, enc: tiktoken.Encoding, config: TrainConfig) -> str:
     return text
 
 
-def train(config: TrainConfig, out_dir: Path, device: str, resume: bool = False) -> Path:
+def train(
+    config: TrainConfig,
+    out_dir: Path,
+    device: str,
+    resume: bool = False,
+    init_from: Path | None = None,
+) -> Path:
     torch.manual_seed(config.seed)
     enc = load_encoding(config.tokenizer)
     model = build_model(config, enc, device)
@@ -115,6 +121,13 @@ def train(config: TrainConfig, out_dir: Path, device: str, resume: bool = False)
         torch.set_rng_state(state["torch_rng"].to("cpu"))
         start_step = state["step"]
         log.info("resumed from %s at step %d", ckpt, start_step)
+    elif init_from is not None:
+        # specialization (Phase 4): seed ONLY the model weights from another
+        # checkpoint (a fresh optimizer + step 0 + this config's schedule).
+        # Shapes must match - load_state_dict fails loud on a mismatch.
+        seed_state = load_checkpoint(init_from, device)
+        model.load_state_dict(seed_state["model"])
+        log.info("initialized weights from %s (was step %d)", init_from, seed_state["step"])
 
     batches = iter_batches(
         corpus, config.batch_size, config.seq_len, config.seed, device, start_step=start_step
