@@ -179,7 +179,7 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       (step 1 word-salad -> step 4000 coherent Cankar cadence, the "before")
 - [ ] **Publish TinyCankar samples** (LinkedIn / blog teaser) - public commitment = project survival
       (repo is public from commit #1; this milestone *promotes* it)
-- [ ] Tag `v0.1-tinycankar`
+- [x] Tag `v0.1-tinycankar` (git tag exists; `v0.2-cankar-v1` also tagged at Phase 4)
 
 ## Phase 3 - Base pretrain (ran LOCAL, $0 - ADR 0018)
 
@@ -189,13 +189,23 @@ Do not build serving or the Laravel orchestrator before the styler exists.
 - [x] **Calibration (B3):** 264k tok/s measured on the 4070 Ti Super;
       checkpoint-resume tested (test_max_hours + the run itself)
 - [ ] `setup.sh`: pod -> clone -> deps -> pull data (HF/R2) -> tmux train -> checkpoint-sync loop. Target: <5 min to training, unattended
-- [ ] Cost discipline: terminate (not stop), delete volumes after sync, `--max-hours` self-terminating flag
+      *(RESERVED - ADR 0018: Phase 3 ran local at $0; the cloud bootstrap earns its
+      keep only for a future run that outgrows the 4070 Ti Super's 16GB)*
+- [x] Cost discipline: `--max-hours` self-terminating flag built + validated
+      (`cankar/train/loop.py:167`, config field, CLI override). Cloud-ops parts
+      (terminate-not-stop, delete-volumes-after-sync) are RESERVED for a future
+      cloud run - moot locally (ADR 0018)
 - [x] **Model size confirmed (2026-07):** 26.3M params (n_layer 6, n_embd 384),
       in the ~15-30M honest range for a 142.78M-token budget (Chinchilla ~4
       epochs ≈ 24M). Ran 3 epochs, loss 9.0 -> 2.8. **Base pretrain DONE:**
       held-out BPB **1.5056** (vs TinyCankar 2.2227, -32%). checkpoints/base.pt.
-- [ ] bf16, flash attention; W&B free tier for live loss curves (blog artifact)
+- [x] bf16 mixed-precision (`cankar/model/compute.py` auto-detect -> bf16 on the
+      4070 Ti Super) + flash attention (`cankar/model/flash_attention.py`, FA3/SDPA
+      switch, vendored) shipped and used in the local run. W&B live loss curves
+      dropped for local console logging - the blog loss-curve artifact moves to
+      Phase 10 capture
 - [ ] Model config: RunPod 4090 for experiments, A100 for the final run
+      *(RESERVED - ADR 0018: ran local on the 4070 Ti Super; cloud unused)*
 - Reference: total compute ~ 50-100x *less* than nanochat's $100 speedrun; budget anxiety = zero
 
 ## Phase 4 - Cankar specialization (hours)
