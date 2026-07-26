@@ -27,6 +27,7 @@ ROOT_ALLOWLIST = {
     "ROADMAP.md",
     "SECURITY.md",
     "THIRD_PARTY_NOTICES.md",  # MIT attribution for vendored nanochat code (ADR 0016)
+    "apps",  # deployable frontends: landing-page (ADR 0019); web/api reserved (ADR 0002)
     "cankar",
     "configs",
     "data",
