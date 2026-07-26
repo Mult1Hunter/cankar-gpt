@@ -117,3 +117,14 @@ to a flagged work, before gate and dedup, counting it as `not_by_author`.
 
 Counts for each re-merge live in `registry/reports/merge.md`, which is
 provenance-stamped and regenerates - they are not repeated here.
+
+**Defense in depth across a stage boundary.** The eval-side url list from ADR 0013
+is kept, but downgraded from a candidacy filter to an independent last-line
+assertion: `cankar_docs` fails loud if a flagged work ever re-appears. `evals`
+keeps its own guard because it reads the merged corpus and never the corpus
+registry - stage independence means a merge regression must not silently score
+seen text. `coverage.py` correspondingly stops counting flagged works as ingested.
+
+This is distinct from cross-author works that ARE kept under their true author via
+`collision_resolution.toml` - a March 1898 letter from Josip Murn sits in both
+correspondents' shards and is re-attributed, not dropped.

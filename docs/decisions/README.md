@@ -5,6 +5,11 @@ topic-based and amended in place (ADR 0023); numbers are never reused, so a
 demoted record becomes a tombstone rather than a deletion. `graphify query` finds
 live records by title.
 
+**`->` in the Status column means the content now lives elsewhere** - the same
+sentinel the record's own Status line carries, and the one
+`tests/structure/test_adr_index.py` checks for agreement. A live record that is
+only *partly* overtaken keeps its body and stays `live`.
+
 | # | Answers | Status |
 |---|---|---|
 | 0001 | why nanochat and not nanoGPT or HF Trainer | -> 0016 |
@@ -25,8 +30,8 @@ live records by title.
 | 0016 | why AdamW not Muon; why vendor-as-port; why the checkpoint is self-describing | live |
 | 0017 | why evals never imports train | -> 0016 |
 | 0018 | what the Phase 3 base pretrain actually cost | -> ROADMAP.md, docs/cankar-v1.md |
-| 0019 | why the landing page sits in apps/ | -> `.github/workflows/pages.yml` |
-| 0020 | why the graphify index rebuilds at session start | -> `.claude/settings.json` |
+| 0019 | why the landing page sits in apps/ | -> `.github/workflows/pages.yml`, `test_layout.py` |
+| 0020 | why the graphify index rebuilds at session start | -> `.claude/settings.json`, CLAUDE.md |
 | 0021 | why the report freshness gate is local and not CI | -> 0022 |
 | 0022 | why CI gates ask for attestations; why default-deny scope; why a gate must be a required check | live |
 | 0023 | when something deserves an ADR at all | live |

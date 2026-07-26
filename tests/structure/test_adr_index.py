@@ -28,16 +28,41 @@ INDEX = DECISIONS / "README.md"
 # records fold it into Decision, and splitting them retroactively would be churn.
 REQUIRED_SECTIONS = ("## Context", "## Decision", "## Consequences")
 
+# `->` is THE sentinel for "this record's content lives somewhere else", in both
+# the ADR's own Status line and its index row. It is deliberately one token: the
+# previous word-list ("withdrawn", "merged into") did not recognise the `adr`
+# skill's own prescribed phrasing, so a record written to spec read as live.
+DEAD = "->"
+
 _ROW_RE = re.compile(r"^\|\s*(\d{4})\s*\|", re.MULTILINE)
+_DESTINATION_RE = re.compile(r"->\s*(\S)")
 
 
 def _adr_files() -> list[Path]:
-    return sorted(DECISIONS.glob("0*.md"))
+    # explicit 4-digit glob: `0*.md` goes blind at ADR 1000 and would silently
+    # narrow every gate in this module.
+    return sorted(DECISIONS.glob("[0-9][0-9][0-9][0-9]-*.md"))
 
 
 def _indexed_numbers() -> set[str]:
     """Numbers in the leading cell of a table row - not anywhere in the file."""
     return set(_ROW_RE.findall(INDEX.read_text(encoding="utf-8")))
+
+
+def _index_rows() -> dict[str, str]:
+    """number -> Status cell. Split on `|` so a Decision cell containing a pipe
+    cannot be mistaken for the Status cell, and short malformed rows are ignored."""
+    rows: dict[str, str] = {}
+    for line in INDEX.read_text(encoding="utf-8").splitlines():
+        cells = [c.strip() for c in line.split("|")[1:-1]]
+        if len(cells) >= 3 and re.fullmatch(r"\d{4}", cells[0]):
+            rows[cells[0]] = cells[-1]
+    return rows
+
+
+def _status_line(path: Path) -> str | None:
+    m = re.search(r"^\*\*Status:\*\*(.*)$", path.read_text(encoding="utf-8"), re.MULTILINE)
+    return m.group(1) if m else None
 
 
 def test_index_lists_exactly_the_adrs_that_exist() -> None:
@@ -93,22 +118,20 @@ def test_tombstoned_adrs_say_so_in_the_index() -> None:
     The index Status cell is where a reader scans for what is still live; the ADR's
     own Status line is what a reader sees when they land cold via grep or a code
     citation. Drift between them makes one of the two lie.
+
+    Note `->` is required, not merely "a word meaning dead". A partly-superseded
+    record that is still authoritative keeps its body and does NOT carry `->` -
+    that is the distinction between amendment and tombstone (ADR 0023).
     """
-    index_text = INDEX.read_text(encoding="utf-8")
-    rows = {
-        m.group(1): m.group(2)
-        for m in re.finditer(r"^\|\s*(\d{4})\s*\|[^|]*\|([^|]*)\|", index_text, re.MULTILINE)
-    }
+    rows = _index_rows()
 
     mismatched: list[str] = []
     for f in _adr_files():
-        status_line = re.search(
-            r"^\*\*Status:\*\*(.*)$", f.read_text(encoding="utf-8"), re.MULTILINE
-        )
-        if status_line is None:
+        status = _status_line(f)
+        if status is None:
             continue  # already reported by the template test
-        file_is_dead = any(w in status_line.group(1) for w in ("withdrawn", "merged into"))
-        index_is_dead = "->" in rows.get(f.name[:4], "")
+        file_is_dead = DEAD in status
+        index_is_dead = DEAD in rows.get(f.name[:4], "")
         if file_is_dead != index_is_dead:
             mismatched.append(
                 f"{f.name}: file says {'dead' if file_is_dead else 'live'}, "
@@ -116,3 +139,23 @@ def test_tombstoned_adrs_say_so_in_the_index() -> None:
             )
 
     assert not mismatched, "ADR status disagrees with its index row:\n" + "\n".join(mismatched)
+
+
+def test_every_tombstone_names_where_its_content_went() -> None:
+    """Content loss is the whole risk of demoting a record, so gate the pointer.
+
+    `**Status:** withdrawn` with nothing after it passes every other check in this
+    module while telling a reader nothing. A destination - a path or an `ADR NNNN` -
+    is the minimum that makes a tombstone useful.
+    """
+    undirected = [
+        f.name
+        for f in _adr_files()
+        if (status := _status_line(f)) and DEAD in status and not _DESTINATION_RE.search(status)
+    ]
+
+    assert not undirected, (
+        "tombstones with no destination after `->`:\n"
+        + "\n".join(undirected)
+        + "\nSay where the content went, or the record is a dead end."
+    )

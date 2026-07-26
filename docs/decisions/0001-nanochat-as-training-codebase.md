@@ -1,6 +1,6 @@
 # ADR 0001 - nanochat (scaled down) as the training codebase
 
-**Status:** merged into ADR 0016, docs/decisions/0016-training-stage.md (2026-07-26)
+**Status:** merged into ADR 0016 -> docs/decisions/0016-training-stage.md (2026-07-26)
 
 ## Context
 

@@ -14,6 +14,11 @@ paths:
 - mypy + ruff + import-linter gate CI. `cankar/core/` is the bottom layer; stages
   import only `core` and stay independent of each other.
 - Artifact paths come from `cankar/core/paths.py` - no relative f-string paths.
+- **One transport policy:** `cankar/core/http.py` `PoliteSession` owns user-agent,
+  timeout and rate limiting. Crawlers never construct raw sessions.
+- **Every calibrated threshold is a named constant** carrying its calibration
+  provenance in a docstring (the ADR 0006 companion rule). A bare number in logic
+  is a bug even when it is correct.
 
 ## Why (absorbed from the withdrawn ADR 0008)
 

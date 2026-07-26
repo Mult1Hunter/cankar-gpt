@@ -1,6 +1,6 @@
 # ADR 0005 - stage subpackages for the Python monorepo side
 
-**Status:** merged into ADR 0007, docs/decisions/0007-structure-law.md (2026-07-26)
+**Status:** merged into ADR 0007 -> docs/decisions/0007-structure-law.md (2026-07-26)
 
 ## Context
 

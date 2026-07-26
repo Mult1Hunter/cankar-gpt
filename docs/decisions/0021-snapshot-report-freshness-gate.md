@@ -1,6 +1,6 @@
 # ADR 0021 - local freshness gate for snapshot reports
 
-**Status:** merged into ADR 0022, docs/decisions/0022-ci-gates.md (2026-07-26)
+**Status:** merged into ADR 0022 -> docs/decisions/0022-ci-gates.md (2026-07-26)
 
 ## Context
 

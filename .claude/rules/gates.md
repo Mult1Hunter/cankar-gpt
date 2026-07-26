@@ -4,6 +4,8 @@ paths:
   - ".github/workflows/**"
   - ".github/ruleset-main.json"
   - ".pre-commit-config.yaml"
+  - "tests/structure/test_gates_are_required.py"
+  - "tests/structure/test_report_freshness.py"
 ---
 
 # CI gates (ADR 0022)

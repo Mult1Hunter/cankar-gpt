@@ -10,8 +10,10 @@ base run so the model adapts its register without forgetting general Slovene.
 
 ## Held-out BPB - the three-model arc
 
-Each model is scored on the same 50 held-out Cankar works (never in any
-training set - verified, ADR 0018). Lower is better.
+Each model is scored on the same 50 held-out Cankar works. "Never in any training
+set" is measured, not assumed: containment of all 50 against the full 126,302-doc
+training corpus, **both directions, = max 0.0000 with zero hits >= 0.80**. Lower
+BPB is better.
 
 | model | params | training | held-out BPB |
 |---|--:|---|--:|

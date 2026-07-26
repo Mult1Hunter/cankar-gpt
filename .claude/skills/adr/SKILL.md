@@ -53,11 +53,18 @@ yes.** You are the typist; they are the architect of record.
 A changed decision **appends to the existing record**: a dated `## Amendment`
 section, and the reason on its index row. Prefer this over a new number.
 
-When a record really is overtaken, **append to its Status line - never rewrite its
-body**: `**Status:** accepted 2026-07; partly superseded by ADR 0007 (2026-07-22)`.
-The reversal is the useful part, and a reader landing cold via grep or a code
-citation must see it. Symmetry with the index is gated by
-`tests/structure/test_adr_index.py`.
+Beyond that there are exactly two outcomes, and the test is **where the content
+now lives**:
 
-Demoted or withdrawn records become short tombstones keeping their number and
-`Status: withdrawn, content moved to <path>` - never deletions.
+| Situation | What to do | Status line |
+|---|---|---|
+| Still authoritative, partly overtaken | **Keep the body.** Append to Status only | `accepted 2026-07; partly superseded by ADR 0007` - **no `->`** |
+| Content has moved elsewhere entirely | **Tombstone**: replace the body with a short stub, keep the number | `withdrawn -> <path>` or `merged into ADR NNNN -> <path>` |
+
+`->` is the sentinel for "the content is not here any more", in the record AND in
+its `docs/decisions/README.md` row. `tests/structure/test_adr_index.py` gates that
+the two agree and that every `->` names a destination. A partly-superseded record
+carries no `->`, because its body is still the answer.
+
+Numbers are never deleted or renumbered - a reader landing cold via grep or a code
+citation must still land somewhere that tells them where to go.

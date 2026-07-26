@@ -1,6 +1,6 @@
 # ADR 0009 - thematic commits, merge-commit PRs
 
-**Status:** withdrawn - content moved, CONTRIBUTING.md (2026-07-26)
+**Status:** withdrawn -> CONTRIBUTING.md (2026-07-26)
 
 ## Context
 

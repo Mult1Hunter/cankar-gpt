@@ -98,9 +98,11 @@ number only for a genuinely new topic. Everything else goes to a skill, a
 ## graphify
 
 Codebase questions: `uv run --group tooling graphify query "<q>"` first - it
-resolves "where does X live" faster than grep. The index is rebuilt automatically
-by a SessionStart hook (ADR 0020); rerun `graphify update .` by hand only after
-large in-session refactors.
+resolves "where does X live" faster than grep. A SessionStart hook rebuilds the
+index (1.65s, no LLM); rerun `graphify update .` by hand only after large
+in-session refactors. The hook is **silenced and non-fatal on purpose**:
+SessionStart stdout is injected into the context window, and a missing `tooling`
+group must never block a session from starting. Do not "helpfully" unsilence it.
 
 <!--
 Placement doctrine (official guidance, re-checked 2026-07-26 against the Claude 5

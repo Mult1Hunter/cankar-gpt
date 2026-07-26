@@ -1,6 +1,6 @@
 # ADR 0019 - public landing page in apps/landing-page, deployed via Actions Pages
 
-**Status:** withdrawn - content moved, .github/workflows/pages.yml and tests/structure/test_layout.py (2026-07-26)
+**Status:** withdrawn -> .github/workflows/pages.yml and tests/structure/test_layout.py (2026-07-26)
 
 ## Context
 

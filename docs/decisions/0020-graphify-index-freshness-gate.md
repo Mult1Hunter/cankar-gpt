@@ -1,6 +1,6 @@
 # ADR 0020 - SessionStart hook keeps the graphify index fresh
 
-**Status:** withdrawn - content moved, .claude/settings.json and the graphify section of CLAUDE.md (2026-07-26)
+**Status:** withdrawn -> .claude/settings.json and the graphify section of CLAUDE.md (2026-07-26)
 
 ## Context
 

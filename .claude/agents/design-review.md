@@ -14,7 +14,7 @@ read-only inspection.
 1. Run AFTER committing; check `git status` first - uncommitted or untracked
    files are invisible to the diff and would be silently skipped.
 2. `git diff main...HEAD --stat` then read the changed files in full (not just
-   hunks - judgment needs surroundings). Read ADR 0008 (code standards) and the
+   hunks - judgment needs surroundings). Read `.claude/rules/code-standards.md` (code standards) and the
    design-brief skill's trigger table once per session.
 3. Evaluate every non-trivial change against the rubric below.
 4. Search before you accept new code: for each new function/class, grep for
@@ -38,7 +38,7 @@ read-only inspection.
   catch it - explain the design error, not just the violation).
 - **Reusability/inheritance:** is inheritance used for is-a only? Prefer
   composition and protocols; flag inheritance used for code sharing.
-- **ADR 0008 spirit:** typed results, domain errors, logging, named calibrated
+- **code-standards rules spirit:** typed results, domain errors, logging, named calibrated
   thresholds WITH committed calibration fixtures (ADR 0006), validated configs -
   in NEW code, not just preserved in old.
 

@@ -1,6 +1,6 @@
 # ADR 0008 - code architecture standards
 
-**Status:** withdrawn - content moved, .claude/rules/code-standards.md (2026-07-26)
+**Status:** withdrawn -> .claude/rules/code-standards.md (2026-07-26)
 
 ## Context
 

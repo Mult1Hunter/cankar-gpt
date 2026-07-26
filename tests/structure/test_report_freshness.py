@@ -12,6 +12,10 @@ encodes which (`cankar/core/reports.py`):
 Class membership is read from the marker, not from filenames, so a new
 `report --all` output is classified correctly without editing this file.
 
+Calibrated on a real positive (ADR 0006): this module was written against a tree
+where `tokenizer-eval.md` was genuinely stale, and was required to FAIL before the
+report was regenerated. Cost is one sha256 over ~503MB, ~0.3s.
+
 Only the sha COMPARISON needs the corpus, so only that test skips locally-gated.
 The pinning test below runs everywhere, including CI - which is the only place a
 contributor's PR is checked.

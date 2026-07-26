@@ -295,6 +295,16 @@ Do not build serving or the Laravel orchestrator before the styler exists.
 
 ---
 
+## Engineering debt (deferrals recorded when their ADR was consolidated - ADR 0023)
+
+- [ ] Fold `token-stats.md` and `tokenizer-eval.md` into the typed `corpus_sha256`
+      manifest channel (already used by `chunks.manifest.json` and `holdout.json`),
+      retiring the header-regex freshness path for those two
+- [ ] `corpus_stamp(sha)` helper in `cankar/core/reports.py`, adopted by the four
+      writers, so the stamp is an exact-line match instead of an 80-char window
+- [ ] Committed BPB report/manifest for canonical checkpoints (they now exist)
+- [ ] `ops/lib/attest.sh` - extract when a THIRD gate needs the attestation check
+
 ## Risk register (from agent review)
 
 *Codes (A1 ... C5) index the pre-kickoff multi-agent plan review; kept for traceability.*

@@ -1,6 +1,6 @@
 # ADR 0014 - misattribution exclusion via NOT_BY_AUTHOR
 
-**Status:** merged into ADR 0004, docs/decisions/0004-works-registry-as-source-of-truth.md (2026-07-26)
+**Status:** merged into ADR 0004 -> docs/decisions/0004-works-registry-as-source-of-truth.md (2026-07-26)
 
 ## Context
 

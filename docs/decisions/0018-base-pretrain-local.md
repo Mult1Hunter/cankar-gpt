@@ -1,6 +1,6 @@
 # ADR 0018 - Phase 3 base pretrain, run locally
 
-**Status:** withdrawn - content moved, ROADMAP.md Phase 3 and docs/cankar-v1.md (2026-07-26)
+**Status:** withdrawn -> ROADMAP.md Phase 3 and docs/cankar-v1.md (2026-07-26)
 
 ## Context
 

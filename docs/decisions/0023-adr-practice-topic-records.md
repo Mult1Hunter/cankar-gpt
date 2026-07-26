@@ -34,8 +34,11 @@ the ADR that decided it. And CLAUDE.md never told a session to consult
 4. **`docs/decisions/README.md` is the entry point**, one line per record written as
    the question it answers, gated for completeness and supersession symmetry by
    `tests/structure/test_adr_index.py`.
-5. **Superseded records are tombstoned in place, never deleted** - number retained,
-   `Status` naming the destination.
+5. **Two outcomes, distinguished by where the content now lives.** A record still
+   authoritative but partly overtaken **keeps its body** and appends to its Status
+   only. A record whose content has **moved** becomes a tombstone: body replaced by
+   a stub, number retained, Status carrying `-> <destination>`. `->` is the single
+   sentinel, in the record and in its index row, and it is gated both ways.
 
 ## Rationale
 
@@ -58,8 +61,13 @@ the ADR that decided it. And CLAUDE.md never told a session to consult
 
 ## Consequences
 
-- 22 records become 11 live topic records plus 11 tombstones; every case study the
-  audit flagged survives verbatim in its merged home.
+- 22 records become 11 live topic records plus 11 tombstones. Case studies were
+  carried to their destinations, but a design-review pass proved a first pass had
+  silently dropped several - the closure verification behind the headline BPB
+  table, the eval-side defense-in-depth guard, the silenced-SessionStart
+  rationale, the Pages `build_type` fact. **Content loss is the real cost of
+  consolidating, and it does not announce itself.** Anything demoted in future gets
+  its destination checked, not assumed.
 - Path-scoped `.claude/rules/` files carry the pointers, so the relevant record
   surfaces automatically where it applies at zero resident context cost.
 - Deferred: nothing enforces that an ADR is cited from a non-`docs/` file. It holds

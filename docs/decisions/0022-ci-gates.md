@@ -13,6 +13,9 @@ completes a ROADMAP deliverable, or whether a design pass happened; that is huma
 judgment. The gate forces the explicit claim instead. It parses added-`[x]` lines
 rather than only `[ ]`->`[x]` flips, because in-flight work arrives as new lines
 already checked - a flip-only parser misses them (PR #21 calibration case).
+The honour system had already failed once: the merge stage and Wikipedia ingestion
+both landed with their checkboxes ticked while the CLAUDE.md status mirror went
+stale behind them. Undoing a done item now costs a rewording, which is the point.
 
 **Why the freshness gate is local, not CI (from ADR 0021).** `registry/reports/`
 snapshot files are computed from gitignored `data/`, which CI never has, so the
