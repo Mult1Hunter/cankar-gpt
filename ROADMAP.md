@@ -282,9 +282,11 @@ Do not build serving or the Laravel orchestrator before the styler exists.
 
 ## Phase 10 - Content (runs *during*, not after - C5)
 
-- [ ] Blog 1: building a Slovene corpus from Wikisource
-- [ ] Blog 2: training an LLM from scratch on rented GPUs for $15 (loss curves, evolving samples, nvtop screenshots
-  - capture artifacts as they happen; unrecoverable afterward)
+- [ ] Blog 1: the launch post - why build a Slovene LLM from scratch, the three-model arc,
+      the honest limits *(drafted; the "rented GPUs for $15" framing is dead - ADR 0018,
+      it ran local at EUR 0, which is the better story)*
+- [ ] Blog 2: building the corpus - provenance, dedup, and the ADR 0014 misattribution
+      incident *(drafted; absorbed the original Blog-1 corpus slot)*
 - [ ] Blog 3: two-model orchestration (knowledge model + own styler + Laravel)
 - [ ] README: architecture diagram, eval numbers, "why from scratch" section, reproducibility ($10 RunPod path
   AND 16GB-consumer-card path documented - environment-agnostic training script)
@@ -316,7 +318,7 @@ Do not build serving or the Laravel orchestrator before the styler exists.
 
 | Item | Cost |
 |---|---|
-| Cloud pretraining (incl. failed runs) | $15-40 one-time |
+| Pretraining | **EUR 0 actual** - ran local on a 4070 Ti Super (ADR 0018; budgeted $15-40 cloud, never spent) |
 | Claude Batch API (pair generation) | $5-15 one-time |
 | Serving (VPS already owned + HF free tier + browser) | ~€0/mo |
 | Tier-2 demo API usage | capped, ~€0-5/mo |

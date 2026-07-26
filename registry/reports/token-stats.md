@@ -2,7 +2,7 @@
 
 # Token stats (Phase 2)
 
-Tokenizer: `v8192`. Corpus sha256 `cdfea262ce5898e5b35001afb2fb8899ccb531ea1c6962c39a7f1ed917e418a2`.
+Tokenizer: `v8192`. Corpus sha256 `d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b`.
 Word = `str.split()` token. Tokens = `encode_ordinary`, BOS excluded.
 
 ## Per source x author
@@ -17,7 +17,7 @@ Word = `str.split()` token. Tokens = `encode_ordinary`, BOS excluded.
 | wikivir | Fran Govekar | 23 | 501,029 | 920,680 | 0.64% |
 | wikivir | Fran Levstik | 87 | 364,395 | 731,675 | 0.51% |
 | wikivir | Fran Milčinski | 124 | 515,552 | 921,646 | 0.65% |
-| wikivir | Ivan Cankar | 208 | 1,544,262 | 2,724,979 | 1.91% |
+| wikivir | Ivan Cankar | 205 | 1,541,737 | 2,720,615 | 1.91% |
 | wikivir | Ivan Tavčar | 54 | 713,612 | 1,299,539 | 0.91% |
 | wikivir | Janez Trdina | 46 | 685,102 | 1,223,341 | 0.86% |
 | wikivir | Janko Kersnik | 43 | 372,622 | 675,082 | 0.47% |
@@ -28,15 +28,15 @@ Word = `str.split()` token. Tokens = `encode_ordinary`, BOS excluded.
 | wikivir | Josip Stritar | 41 | 411,220 | 714,648 | 0.50% |
 | wikivir | Simon Jenko | 17 | 56,741 | 109,647 | 0.08% |
 | wikivir | Zofka Kveder | 94 | 443,054 | 776,529 | 0.54% |
-| **total** | | 126,355 | 72,333,337 | 142,771,228 | 100.00% |
+| **total** | | 126,352 | 72,330,812 | 142,766,864 | 100.00% |
 
 ## Phase 3 sizing inputs
 
-- Total tokens: **142,771,228** (one epoch)
-- Cankar slice: **2,916,840** tokens (Phase 4 continued
+- Total tokens: **142,766,864** (one epoch)
+- Cankar slice: **2,912,476** tokens (Phase 4 continued
   pretraining + Phase 2.5 TinyCankar sizing)
 - Steps/epoch at T=2048 (single device):
-  - B=16: 32,768 tokens/step -> 4,357 steps/epoch
+  - B=16: 32,768 tokens/step -> 4,356 steps/epoch
   - B=32: 65,536 tokens/step -> 2,178 steps/epoch
 
 ## Warning for Phase 3 data adaptation
