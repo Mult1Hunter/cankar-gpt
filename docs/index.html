@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CankarGPT - a Slovene voice from scratch</title>
+  <meta name="description" content="A 26M-parameter Slovene language model trained from scratch and specialized in the prose voice of Ivan Cankar. Live samples, eval numbers, and how it was built.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>%F0%9F%95%AF%EF%B8%8F</text></svg>">
+  <!-- Open Graph / LinkedIn link preview. og:image TODO: add a hosted 1200x630 of the 'Mati je' fork. -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="CankarGPT - a Slovene voice from scratch">
+  <meta property="og:description" content="A 26M-parameter Slovene LLM trained from scratch, specialized in Ivan Cankar's prose voice. Same prompt: one model reaches for facts, the other for a person.">
+  <meta property="og:url" content="https://cankar-gpt.nextgen-solutions.xyz">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="wrap">
+  <nav class="bar">
+    <span class="mark">Cankar<span class="flame">GPT</span></span>
+    <span class="links">
+      <a href="how-it-works.html">How it works</a>
+      <a href="https://github.com/Mult1Hunter/cankar-gpt">GitHub</a>
+      <a href="https://nextgen-solutions.xyz">nextgen-solutions.xyz</a>
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle light or dark theme">theme</button>
+    </span>
+  </nav>
+</div>
+
+<header class="top">
+  <div class="wrap">
+    <p class="eyebrow">A Slovene micro-LLM, trained from scratch</p>
+    <h1 class="brand">Cankar<span class="flame">GPT</span> <span class="flame-mark">&#10087;</span></h1>
+    <p class="lede">A 26-million-parameter language model built from nothing but public-domain
+      text, then taught the prose voice of <b>Ivan Cankar</b> (1876-1918). No pretrained
+      base. No API. Trained on one desktop GPU for about the price of nothing.</p>
+    <p class="epigraph">&bdquo;Mati, ali je model &zcaron;e konvergiral?&ldquo;</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section>
+    <div class="kicker"><h2>Same two words. Two different minds.</h2></div>
+    <p class="prompt-line col">Prompt given to two checkpoints of the same 26M model:
+      <b>Mati je</b> &nbsp;("The mother is...")</p>
+    <div class="fork">
+      <div class="panel machine">
+        <div class="tag"><span class="dot"></span> base model <span class="verdict">- reaches for facts</span></div>
+        <p class="out-machine">Mati je &zcaron;ensko osebno ime. Izvor imena: ime Mati je razli&ccaron;ica
+          &zcaron;enskega osebnega imena Matina. Pogostost imena: po podatkih Statisti&ccaron;nega urada
+          Republike Slovenije je bilo na dan 31.&nbsp;decembra 2007 ...</p>
+      </div>
+      <div class="panel voice">
+        <div class="tag"><span class="dot"></span> CankarGPT&nbsp;v1 <span class="verdict">- reaches for a person</span></div>
+        <p class="out-voice">Mati je bila tesno skupaj, s prstom je sijala po sobi. Na desni je
+          dr&zcaron;ala v roki roko, le&zcaron;ala mu je na postelji, na vzglavju je dr&zcaron;al s treso&ccaron;o roko
+          ter se je ozrl doli po sobi. <span class="q">&bdquo;Veselo je &zcaron;e, Mana.&ldquo;</span></p>
+      </div>
+    </div>
+    <p class="note fork-foot col">The base model, having read Wikipedia, writes an encyclopedia entry.
+      After a short specialization pass on Cankar alone, the very same architecture stops reporting
+      and starts grieving. That register shift is the whole project.</p>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num">the arc</span><h2>From token soup to a voice</h2></div>
+    <p class="note col" style="margin-bottom:var(--s3)">Three checkpoints, one prompt - <b style="color:var(--ink)">Bilo je</b>
+      ("It was..."). Each is scored on the same 50 held-out Cankar works it never saw, in
+      <b style="color:var(--ink)">bits per byte</b> (lower is better).</p>
+    <div class="arc">
+      <div class="stage tiny">
+        <div><h3 class="who">TinyCankar / 15M / Cankar-only, overfit</h3>
+          <p class="said">Bilo je &ccaron;isto vse. Zdelo se mi je, da &zcaron;ivi nekje med mrtvimi in
+            veselimirami, da mu je nemarna groza v srcu ... goloslu&zcaron;en mo&ccaron;eve&ccaron;er na prej&scaron;njem,
+            &ccaron;isto neznanem ...</p></div>
+        <div class="metric"><span class="big">2.22</span><span class="lbl">bits / byte</span></div>
+      </div>
+      <div class="stage base">
+        <div><h3 class="who">base / 26M / full corpus</h3>
+          <p class="said">Bilo je jasno, da je bila stavba zgrajena med letoma 1911 in 1912. ...
+            Leta 1912 je ameri&scaron;ki odred napovedal, da bo v nedeljo, 1.&nbsp;maja ...</p></div>
+        <div class="metric"><span class="big">1.51</span><span class="lbl">bits / byte</span></div>
+      </div>
+      <div class="stage v1">
+        <div><h3 class="who">CankarGPT v1 / 26M / base + Cankar</h3>
+          <p class="said">Bilo je &zcaron;e pozno, ko je posetil kozolec po klancu, in ko je bil v
+            kr&ccaron;mi, je &scaron;el, in je &scaron;el, zakaj nih&ccaron;e bi ne bil &scaron;el ponj? Bilo mu je pri srcu,
+            ko mi je pri&scaron;el do srca, da bi videl, kako je bilo.</p></div>
+        <div class="metric v1"><span class="big">1.45</span><span class="lbl">bits / byte</span></div>
+      </div>
+    </div>
+    <p class="note col" style="margin-top:var(--s3)">More data cut the error 32%; specialization cut
+      another 3.6% <em>without</em> memorizing the held-out works. Note the word <em>klanec</em>
+      (the hillside slope) surfacing in v1 - the title of one of Cankar's novels.</p>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num">the numbers</span><h2>Every claim carries a measurement</h2></div>
+    <div class="stats">
+      <div class="stat hi"><div class="v">1.4508</div><div class="k">held-out BPB, CankarGPT v1 (lower is better)</div></div>
+      <div class="stat"><div class="v">0.993</div><div class="k">style-classifier ROC-AUC, Cankar vs 14 peers</div></div>
+      <div class="stat"><div class="v">26.3M</div><div class="k">parameters (6 layers, 384-dim)</div></div>
+      <div class="stat"><div class="v">~&euro;0</div><div class="k">total training cost, one desktop GPU</div></div>
+    </div>
+    <div class="bars">
+      <div class="bar-row"><span class="name">TinyCankar</span><span class="track"><span class="fill tiny" style="width:100%"></span></span><span class="val">2.2227</span></div>
+      <div class="bar-row"><span class="name">base</span><span class="track"><span class="fill base" style="width:67.7%"></span></span><span class="val">1.5056</span></div>
+      <div class="bar-row"><span class="name">CankarGPT v1</span><span class="track"><span class="fill v1" style="width:65.3%"></span></span><span class="val">1.4508</span></div>
+    </div>
+    <p class="note col" style="margin-top:var(--s3)">Held-out set: 50 whole Cankar prose works
+      (146,268 tokens, 5% of the Cankar corpus), frozen and containment-checked so no fragment leaks
+      into training. The style classifier's signal is punctuation rhythm and function words - voice,
+      not topic (audited).</p>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num">versions</span><h2>How it has improved, release by release</h2></div>
+    <p class="note col" style="margin-bottom:var(--s3)">This page tracks the model as it grows. Every
+      release is scored on the same frozen held-out set, so the numbers are comparable across stages -
+      a new row lands here each time a stage ships.</p>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Release</th><th>Model</th><th>Params</th><th>Held-out BPB</th><th>What changed</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">v0.1</td><td>TinyCankar</td><td class="mono">15M</td><td class="mono">2.2227</td><td>First from-scratch proof of life: Cankar-only, deliberately overfit - the charming "before".</td></tr>
+          <tr class="current"><td class="mono">v0.2</td><td>CankarGPT v1</td><td class="mono">26.3M</td><td class="mono">1.4508</td><td>Full-corpus base model, then specialized on Cankar. A 35% lower BPB than v0.1, without overfitting.</td></tr>
+          <tr class="upcoming"><td class="mono">next</td><td>The styler</td><td class="mono">26.3M</td><td class="mono">tbd</td><td>Plain modern Slovene in, the same meaning back in Cankar's register (phases 5-6).</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num">more output</span><h2>Unconditional continuations</h2></div>
+    <p class="note col" style="margin-bottom:var(--s3)">Prompt <b style="color:var(--ink)">Na cesti je</b>
+      ("On the road there is..."), temperature 0.8, nothing cherry-picked across seeds.</p>
+    <div class="gallery">
+      <div class="card v1"><div class="chip"><span class="dot" style="background:var(--voice)"></span> CankarGPT v1</div>
+        <p class="said">Na cesti je pozdravil Milena. Obraz je bil zelo droben in zelo gladek. ...
+          <span class="q">&bdquo;Ali ste blagi, milan? Milan, prijatelj moj, ali ste blagi?&ldquo;</span></p></div>
+      <div class="card v1"><div class="chip"><span class="dot" style="background:var(--voice)"></span> CankarGPT v1</div>
+        <p class="said">Na cesti je bil lep ve&ccaron;er, tudi &zcaron;e se je svetila v neskon&ccaron;nost; zmirom sem
+          ji pogledal v obraz in &zcaron;e je bil &zcaron;alosten. <span class="q">&bdquo;Kaj pa ti, Tone?&ldquo;</span></p></div>
+      <div class="card base"><div class="chip"><span class="dot" style="background:var(--machine)"></span> base</div>
+        <p class="said">Na cesti je bila palica, na kateri so se raztresene kapljice zravnale.
+          Mislili so, da je to &scaron;vigalo ... <span class="q">&raquo;Duhovit grad! Ali ni bila na de&zcaron;eli?&laquo;</span></p></div>
+      <div class="card tiny"><div class="chip"><span class="dot" style="background:var(--broken)"></span> TinyCankar (broken by design)</div>
+        <p class="said">Na cesti je prihajala &zcaron;enska, na stolu, vse tri panove. Njen triletni obraz
+          je resen, kakor starikav, krepak previden, krepkost otro&scaron;ki obrazi ...</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num">the plan</span><h2>Where this is going</h2></div>
+    <div class="road">
+      <div class="phase done"><div class="p-st">done</div><div class="p-nm">Corpus</div></div>
+      <div class="phase done"><div class="p-st">done</div><div class="p-nm">Tokenizer</div></div>
+      <div class="phase done"><div class="p-st">done</div><div class="p-nm">Eval harness</div></div>
+      <div class="phase done"><div class="p-st">done</div><div class="p-nm">TinyCankar</div></div>
+      <div class="phase done"><div class="p-st">done</div><div class="p-nm">Base model</div></div>
+      <div class="phase now"><div class="p-st">you are here</div><div class="p-nm">CankarGPT v1</div></div>
+      <div class="phase next"><div class="p-st">next</div><div class="p-nm">Style pairs</div></div>
+      <div class="phase next"><div class="p-st">next</div><div class="p-nm">The styler</div></div>
+      <div class="phase later"><div class="p-st">later</div><div class="p-nm">Public demo</div></div>
+    </div>
+
+    <div class="rm-groups">
+      <div class="rm-group done">
+        <h3>The foundation</h3>
+        <p class="g-sub">done - phases 0-4</p>
+        <ul>
+          <li><b>Corpus</b> - public-domain literature plus Slovenian Wikipedia, cleaned, deduplicated and merged (~73M words).</li>
+          <li><b>Tokenizer</b> - a custom Slovene sub-word vocabulary, trained from scratch on that corpus.</li>
+          <li><b>Eval harness</b> - a frozen held-out set and a style classifier, so quality is measured, never claimed.</li>
+          <li><b>TinyCankar -&gt; base -&gt; v1</b> - a tiny proof of life, then general Slovene, then Cankar's voice.</li>
+        </ul>
+      </div>
+      <div class="rm-group next">
+        <h3>The product</h3>
+        <p class="g-sub">next - phases 5-6</p>
+        <ul>
+          <li><b>Style pairs</b> - synthetic plain &lt;-&gt; Cankar sentence pairs, generated with a large model.</li>
+          <li><b>The styler</b> - fine-tune on those pairs so you feed in plain modern Slovene and get the same meaning back in Cankar's register.</li>
+          <li>This is where a tiny model earns its keep: it supplies the <em>voice</em>, the meaning comes from the input.</li>
+        </ul>
+      </div>
+      <div class="rm-group later">
+        <h3>The reach</h3>
+        <p class="g-sub">later - phases 7-9</p>
+        <ul>
+          <li><b>Serving</b> - a free CPU endpoint, with a stretch goal of running the model fully in the browser.</li>
+          <li><b>Two-tier demo</b> - "write like Cankar" plus "ask Cankar", the second pairing a knowledge model with the styler.</li>
+          <li><b>GaMS v2</b> - a fine-tune of a larger Slovene base model, as an honest quality yardstick.</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="note col" style="margin-top:var(--s3)">The current model <em>continues</em> a prompt in
+      Cankar's voice. The next stages turn it into a <b style="color:var(--ink)">styler</b>: give it a
+      plain modern-Slovene draft, get back the same meaning in Cankar's register. That is where a tiny
+      model earns its keep - it supplies the voice, while the meaning comes from the input.</p>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num">how it was built</span><h2>Technical overview</h2></div>
+    <dl class="spec">
+      <div><dt>Corpus</dt><dd>126,355 documents, 72.3M words <small>- Slovenian Wikipedia + 15 public-domain authors; the Cankar slice is 2.92M tokens</small></dd></div>
+      <div><dt>Tokenizer</dt><dd>custom Slovene BPE, 8,192 vocab <small>- 1.77 tokens/word on Cankar; trained from scratch on the merged corpus</small></dd></div>
+      <div><dt>Model</dt><dd>26.3M-param GPT <small>- 6 layers, 384-dim, 6 heads, 1,024 context; bf16, flash attention</small></dd></div>
+      <div><dt>Training budget</dt><dd>142.77M tokens <small>- base: 3 epochs, loss 9.0 -&gt; 2.8; specialization: ~3 gentle epochs on Cankar</small></dd></div>
+      <div><dt>Hardware</dt><dd>one RTX 4070 Ti Super (16GB) <small>- 264k tokens/sec; base pretrain ~27 minutes; run locally, &euro;0</small></dd></div>
+      <div><dt>Evaluation</dt><dd>held-out BPB + style classifier <small>- frozen 50-work holdout, containment-checked; confound-audited AUC 0.993</small></dd></div>
+    </dl>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num">in plain words</span><h2>What the terms mean</h2></div>
+    <dl class="glossary">
+      <div><dt>Bits per byte (BPB)</dt><dd>How surprised the model is by real Cankar text. Fewer bits = better prediction. Lower is better.</dd></div>
+      <div><dt>Token / BPE</dt><dd>The model reads text in sub-word pieces called tokens; a BPE tokenizer learns those pieces from the corpus itself.</dd></div>
+      <div><dt>Parameters</dt><dd>The numbers the model learns (its weights). 26 million here - tiny; frontier models have 100,000x more.</dd></div>
+      <div><dt>Epoch</dt><dd>One full pass over the training text. This model saw its corpus about three times.</dd></div>
+      <div><dt>Held-out set</dt><dd>Works deliberately kept out of training, used only to test - so a good score cannot be memorization.</dd></div>
+      <div><dt>Specialization</dt><dd>Extra training of the general model on Cankar alone, to shift its register toward his voice.</dd></div>
+      <div><dt>Temperature</dt><dd>How much randomness the sampler allows. Higher is more varied and riskier; lower is safer and flatter.</dd></div>
+      <div><dt>Style classifier</dt><dd>A separate detector that tells Cankar's prose from 14 other authors', used to measure how "Cankar" the voice is.</dd></div>
+    </dl>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num">the honest part</span><h2>What this is, and what it is not</h2></div>
+    <div class="honesty">
+      <div class="box is"><h3>What it is</h3>
+        <ul>
+          <li>A from-scratch demonstration that a tiny model can learn a distinct Slovene literary <em>voice</em> from ~3M tokens.</li>
+          <li>Locally fluent: grammar, morphology, and Cankar's melancholic cadence are convincingly there.</li>
+          <li>Fully measured - every number here comes from a frozen eval harness, not from vibes.</li>
+        </ul></div>
+      <div class="box isnot"><h3>What it is not</h3>
+        <ul>
+          <li>Not logically coherent across a paragraph - at 26M parameters that is a scale floor, expected, not a bug.</li>
+          <li>Not the styler yet: v1 <em>continues</em> a prompt; the plain-&gt;Cankar rewrite comes in a later stage.</li>
+          <li>Not affiliated with Ivan Cankar or any institution - this is an AI pastiche, built for learning.</li>
+        </ul></div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="foot-links">
+      <a href="how-it-works.html">How it works</a>
+      <a href="https://github.com/Mult1Hunter/cankar-gpt">GitHub repository</a>
+      <a href="https://nextgen-solutions.xyz">nextgen-solutions.xyz</a>
+    </div>
+    <p class="eyebrow">Sources &amp; credit</p>
+    <div class="sources">
+      Texts by <b>Ivan Cankar</b> are public domain, gathered from <b>Wikivir</b> (Wikisource SL)
+      and the <b>Digital Library of Slovenia (dLib.si)</b>.<br>
+      General-Slovene pretraining text from <b>Slovenian Wikipedia</b> (CC BY-SA).<br>
+      Model architecture ported from <b>nanochat</b> (MIT). Code is MIT-licensed and public from commit&nbsp;#1.
+    </div>
+    <p class="disclaim" style="margin-top:var(--s3)">CankarGPT is an educational AI project by
+      <a href="https://nextgen-solutions.xyz">Matic Koro&scaron;ec</a>: a machine imitation of a long-dead
+      author's style, not the author and not endorsed by anyone who studies him. Costs, numbers, and
+      samples are reported as measured.</p>
+  </footer>
+</main>
+
+<script>
+  (function () {
+    var root = document.documentElement, key = "cankargpt-theme";
+    try { var saved = localStorage.getItem(key); if (saved) root.setAttribute("data-theme", saved); } catch (e) {}
+    var btn = document.getElementById("themeToggle");
+    btn.addEventListener("click", function () {
+      var cur = root.getAttribute("data-theme");
+      if (!cur) cur = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      var next = cur === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      try { localStorage.setItem(key, next); } catch (e) {}
+    });
+  })();
+</script>
+</body>
+</html>
