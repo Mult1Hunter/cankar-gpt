@@ -1,20 +1,26 @@
 # CankarGPT
 
 [![CI](https://github.com/Mult1Hunter/cankar-gpt/actions/workflows/ci.yml/badge.svg)](https://github.com/Mult1Hunter/cankar-gpt/actions/workflows/ci.yml)
+[![Live site](https://img.shields.io/badge/live-cankar--gpt.nextgen--solutions.xyz-2ea043)](https://cankar-gpt.nextgen-solutions.xyz)
+[![held-out BPB](https://img.shields.io/badge/held--out%20BPB-1.4508-df8a52)](docs/cankar-v1.md)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > *Mati, ali je model že konvergiral?*
 
-A Slovene micro language model (~40M parameters) trained **from scratch** - custom BPE
+A Slovene micro language model (~26M parameters) trained **from scratch** - custom BPE
 tokenizer, pretraining on public-domain Slovenian literature and Wikipedia, then
 specialized in the prose voice of **Ivan Cankar** (1876-1918), with a plain->Cankar
 style-transfer stage trained on synthetic parallel data.
 
-**Status:** Phase 2.25 (evaluation harness) complete - held-out BPB set + a
-confound-audited style classifier (ROC-AUC 0.993) both frozen; corpus merged,
-tokenized (v8192, 142.77M tokens) and chunked. Next: base pretrain. See
-[ROADMAP.md](ROADMAP.md) for the full plan, risk register, and budget (spoiler:
-the whole thing costs about one dinner in Ljubljana).
+**Live:** [cankar-gpt.nextgen-solutions.xyz](https://cankar-gpt.nextgen-solutions.xyz) - samples, eval numbers, and a plain-language explainer.
+
+**Status:** Phase 4 complete - **CankarGPT v1** (26.3M params) specialized on
+Cankar, held-out BPB **1.4508** (TinyCankar 2.2227 -> base 1.5056 -> v1 1.4508).
+Corpus, tokenizer (v8192, 142.77M tokens), eval harness (BPB + style classifier
+ROC-AUC 0.993), and the public site are all live. Next: synthetic style pairs
+(Phase 5). See [ROADMAP.md](ROADMAP.md) for the full plan, risk register, and
+budget (spoiler: the whole thing costs about one dinner in Ljubljana).
 
 ## Why from scratch, when GaMS exists?
 
