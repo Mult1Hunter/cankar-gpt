@@ -64,5 +64,7 @@ ROADMAP checkboxes are the canonical status. Two triggers:
   PR - reference the PR number on the line. Work added in-flight (not on the
   roadmap) gets a new checked line marked *(added in-flight - ADR NNNN)*.
   The PR template carries this as a mandatory checklist item.
-- **Phase completed**: additionally sync both status mirrors in the same commit:
-  CLAUDE.md "Current phase" and the README status line.
+- **Phase completed**: additionally sync the README status line in the same
+  commit. CLAUDE.md no longer mirrors phase status - that block was deleted for
+  rotting against the checkboxes it declared canonical; ROADMAP is the only
+  place status lives.

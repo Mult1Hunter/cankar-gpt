@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --group tooling graphify update . >/dev/null 2>&1 || true"
+          }
+        ]
+      }
+    ]
+  }
+}
