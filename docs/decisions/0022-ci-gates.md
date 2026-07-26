@@ -1,8 +1,29 @@
-# ADR 0022 - design-review is mandatory on machinery PRs
+# ADR 0022 - CI gates: PR attestation, default-deny scope, required checks
 
-**Status:** accepted, 2026-07-26
+**Status:** accepted, 2026-07-26; absorbed ADR 0010 and ADR 0021 (2026-07-26)
 
 ## Context
+
+This is the repo's one record for CI gates as a class. Three exist - the roadmap
+gate (ADR 0010), the snapshot-report freshness gate (ADR 0021) and the
+design-review gate - and they share a design, so they share a record.
+
+**Why attestation at all (from ADR 0010).** CI cannot judge whether a diff
+completes a ROADMAP deliverable, or whether a design pass happened; that is human
+judgment. The gate forces the explicit claim instead. It parses added-`[x]` lines
+rather than only `[ ]`->`[x]` flips, because in-flight work arrives as new lines
+already checked - a flip-only parser misses them (PR #21 calibration case).
+
+**Why the freshness gate is local, not CI (from ADR 0021).** `registry/reports/`
+snapshot files are computed from gitignored `data/`, which CI never has, so the
+check lives in the test suite and skips when the corpus is absent. A repo-local
+`pre-push` hook was the obvious alternative and is **dead on this machine**: a
+global `core.hooksPath` shadows repo hooks and chains only `pre-commit` and
+`commit-msg`. That constraint is not discoverable from the repo and would be
+rediscovered the hard way. The drift it catches was real - `token-stats.md` and
+`tokenizer-eval.md` both carried a dead corpus sha in a public repo after the ADR
+0014 re-merge.
+
 
 ADR 0003's per-PR ritual puts a `design-review` agent pass on the diff, and the
 PR template carries the checkbox. It is honoured when someone remembers. The two

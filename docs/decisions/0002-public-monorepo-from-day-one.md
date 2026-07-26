@@ -17,8 +17,7 @@ Layout is document-first - directories are created when their phase starts:
 
 | Path | Contents | Arrives |
 |---|---|---|
-| `scripts/` | Python pipeline entry points | Phase 1 (now) |
-| `cankar/` | shared Python package | ~Phase 2 |
+| `cankar/` | the Python package - all logic, one `cli.py` per stage (ADR 0007) | Phase 1 |
 | `apps/landing-page` | static public site (GitHub Pages via Actions) | Phase 4 (ADR 0019) |
 | `apps/api` | FastAPI serving (joins a uv workspace) | Phase 7 |
 | `apps/web` | Astro demo + browser ONNX (own `package.json`) | Phase 7.5 |

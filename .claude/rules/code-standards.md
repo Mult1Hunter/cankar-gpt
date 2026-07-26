@@ -14,3 +14,15 @@ paths:
 - mypy + ruff + import-linter gate CI. `cankar/core/` is the bottom layer; stages
   import only `core` and stay independent of each other.
 - Artifact paths come from `cankar/core/paths.py` - no relative f-string paths.
+
+## Why (absorbed from the withdrawn ADR 0008)
+
+A code audit found closed sets as runtime-validated string sets, results as
+stringly-keyed dicts, library code raising `SystemExit` and printing to stderr,
+untyped TOML access, and no static type checker. Two facts worth keeping:
+
+- mypy's first run immediately found real shadowing - a `triage` parameter
+  silently shadowed by a local list.
+- StrEnum serialises to the same plain strings, so committed registry JSONL stayed
+  byte-compatible through the migration (tested). That is why the closed-set rule
+  cost nothing to adopt.

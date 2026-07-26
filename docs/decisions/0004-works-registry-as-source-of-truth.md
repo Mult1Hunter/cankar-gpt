@@ -25,12 +25,12 @@ work: canonical title, year, genre, aliases, and per-source status
 - **Identity:** normalized title (NFC, casefold, punctuation stripped,
   diacritics kept) within one author; publication year disambiguates editions
   and validates plausibility against the author's lifetime.
-- **Collision guard:** `scripts/corpus/validate_registry.py` - work_id uniqueness,
+- **Collision guard:** `cankar corpus validate` - work_id uniqueness,
   duplicate normalized titles, year ranges, and cross-author title collisions
   flagged for manual confirmation (generic titles like "Jure" collide).
 - **Source preference:** hand transcription (wikivir) beats OCR (dlib); dLib
   fills gaps only. OCR ingestion passes cankar/corpus/ocr_clean quality gates.
-- `registry/coverage-<author>.md` is generated (`scripts/corpus/report_coverage.py`),
+- `registry/reports/coverage-<author>.md` is generated (`cankar corpus report`),
   committed, and answers "what do we have and from where" at a glance.
 
 ## Rationale
@@ -89,3 +89,31 @@ Resolution, mechanized in `cankar corpus reconcile-dlib`:
 - Title matching gains one relaxation (subtitle stripping on dLib's " : "
   separator), still exact-on-normalized - no fuzzy matching, preserving the
   name-collision guarantees that motivated this ADR.
+
+## Amendment 3 (2026-07-26) - misattribution, absorbed from ADR 0014
+
+The ADR 0013 holdout audit surfaced texts crawled into Cankar's shard but written
+by others - two Vera Albreht memoirs and a critic's essay - carrying
+`author="Ivan Cankar"`. They sat in the merged Cankar TRAINING slice, poisoning
+Phase 4 continued-pretraining and the style classifier.
+
+`WorkFlag.NOT_BY_AUTHOR` extends this ADR's core claim: the human-curated registry
+is the source of truth, so a misattributed work is flagged there (author field
+kept, true author and rights in `notes`) and `merge.py` drops any shard doc mapping
+to a flagged work, before gate and dedup, counting it as `not_by_author`.
+
+- **Enforcement belongs at merge, not crawl.** Wikivir exposes no structured author
+  metadata, so a crawl-time detector would be a fragile title heuristic - the ADR
+  0006 failure class. A genitive-title sweep already false-positived on Cankar's own
+  `Smrt in pogreb Jakoba Nesrece`.
+- **Flag over deletion.** The records must persist so the merge can match and
+  exclude them; deleting them would let the shard docs back in.
+- **Enumerated, not detected.** A full-corpus sweep (genitive + person-name + text
+  read) found 5 real records, not the 3 the length-banded audit saw. A future
+  about-subject work with no name cue would need the same human audit - recorded,
+  not mechanized, because a reliable wikivir detector does not exist.
+- Two of the Albreht memoirs are also still in copyright (d. 1982, PD 2053);
+  excluded on the attribution flag, rights recorded in notes.
+
+Counts for each re-merge live in `registry/reports/merge.md`, which is
+provenance-stamped and regenerates - they are not repeated here.
