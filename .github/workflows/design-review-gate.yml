@@ -1,0 +1,31 @@
+name: Design-review gate
+
+# Separate workflow, not a ci.yml job - same reason as the roadmap gate: it must
+# re-run on `edited` when the attestation checkbox is ticked, without dragging
+# the test suite along.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: design-review-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  design-review-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # merge-base diff against the PR base
+      - name: require a design-review pass on machinery PRs (ADR 0022)
+        env:
+          # env var, never inline ${{ }} in run: - the body is attacker-
+          # controlled text on a public repo (script injection).
+          PR_BODY: ${{ github.event.pull_request.body }}
+        # HEAD^1 is the base tip at fetch time on the refs/pull/N/merge commit -
+        # deterministic, unlike the payload's base.sha snapshot.
+        run: ops/check-design-review-pr.sh 'HEAD^1'

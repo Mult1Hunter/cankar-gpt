@@ -55,8 +55,10 @@ Act as this project's senior engineer, not an assistant:
 - `cankar/core/paths.py` is the ONLY place artifact paths are defined - no relative
   f-string paths. Stages import only `core` (import-linter).
 - `registry/` = committed ledgers (`works/` human-curated, `datasets/` shard manifests,
-  `reports/` generated + drift-checked). `ops/` = operated, never imported. `data/` =
-  gitignored working data. Every governed dir has a <=30-line README contract.
+  `reports/` generated - the committed-input class is drift-checked in CI, the
+  snapshot class is gated locally by corpus-sha, ADR 0021). `ops/` = operated, never
+  imported. `data/` = gitignored working data. Every governed dir has a <=30-line
+  README contract.
 - Structure changes edit the allowlist in `tests/structure/test_layout.py` and cite an
   ADR in the same PR.
 - Personal notes -> sibling private repo `../cankar-gpt-meta`, never here.
@@ -67,7 +69,10 @@ Act as this project's senior engineer, not an assistant:
 - Every PR that completes a ROADMAP deliverable ticks its checkbox in the same PR.
   An unticked done item is a bug.
 - Per-PR ritual: `design-brief` -> implement -> `design-review` agent on the diff ->
-  `commit` -> PR. Fresh corpus shards additionally get `corpus-qa`.
+  `commit` -> PR. Fresh corpus shards additionally get `corpus-qa`. The
+  `design-review` pass is MANDATORY on every PR except pure content
+  (`docs/`, `registry/`, `apps/landing-page/`, `.claude/`, root `*.md`) - a
+  required CI check enforces the attestation (ADR 0022).
 - Authored-literary documents map to a works-registry entry (ADR 0004); unmatched
   records go to triage, never silently dropped. Non-authored sources (Wikipedia) carry
   dataset-manifest provenance with per-reason skip counts instead (ADR 0004 amendment).

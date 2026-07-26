@@ -2,8 +2,8 @@
 
 # Tokenizer evaluation (Phase 2)
 
-Corpus: `data/merged/corpus.jsonl` sha256 `cdfea262ce5898e5b35001afb2fb8899ccb531ea1c6962c39a7f1ed917e418a2`
-Docs: 126,355. Word = `str.split()` token (matches corpus-quality.md).
+Corpus: `data/merged/corpus.jsonl` sha256 `d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b`
+Docs: 126,352. Word = `str.split()` token (matches corpus-quality.md).
 Fertility = tokens/word; p95 is the per-doc tail (non-Latin spans and
 OCR debris hide in means - critique A-3). Digit share = emitted tokens
 that are ASCII-digit-only (split pattern caps runs at \p{N}{1,2}).
@@ -12,13 +12,13 @@ that are ASCII-digit-only (split pattern caps runs at \p{N}{1,2}).
 
 | candidate | slice | docs | words | tok/word | p95 | bytes/tok | digit% |
 |---|---|---|---|---|---|---|---|
-| v4096 | cankar | 249 | 1,651,941 | 1.956 | 2.160 | 2.927 | 0.02 |
+| v4096 | cankar | 246 | 1,649,416 | 1.956 | 2.160 | 2.927 | 0.02 |
 | v4096 | literary | 720 | 5,443,854 | 2.000 | 2.324 | 2.932 | 0.12 |
 | v4096 | wikipedia | 125,386 | 65,237,542 | 2.235 | 3.018 | 3.005 | 3.73 |
-| v8192 | cankar | 249 | 1,651,941 | 1.766 | 1.948 | 3.242 | 0.03 |
+| v8192 | cankar | 246 | 1,649,416 | 1.766 | 1.948 | 3.242 | 0.03 |
 | v8192 | literary | 720 | 5,443,854 | 1.812 | 2.135 | 3.236 | 0.13 |
 | v8192 | wikipedia | 125,386 | 65,237,542 | 1.993 | 2.701 | 3.370 | 4.19 |
-| v16384 | cankar | 249 | 1,651,941 | 1.615 | 1.776 | 3.543 | 0.03 |
+| v16384 | cankar | 246 | 1,649,416 | 1.616 | 1.776 | 3.543 | 0.03 |
 | v16384 | literary | 720 | 5,443,854 | 1.668 | 1.977 | 3.515 | 0.15 |
 | v16384 | wikipedia | 125,386 | 65,237,542 | 1.797 | 2.443 | 3.736 | 4.64 |
 
@@ -26,7 +26,7 @@ that are ASCII-digit-only (split pattern caps runs at \p{N}{1,2}).
 
 - v4096: 1.956 / 2.235 = **0.875**
 - v8192: 1.766 / 1.993 = **0.886**
-- v16384: 1.615 / 1.797 = **0.899**
+- v16384: 1.616 / 1.797 = **0.899**
 
 ## Vocab cost under nanochat's architecture (critique MF-2)
 
@@ -115,7 +115,7 @@ Phase 3 sizing - both numbers are here.
 - docs containing U+00AD soft hyphen: 191
   (survives NFC, category Cf: fractures words invisibly - candidate
   for a corpus errata pass, out of scope here)
-- docs containing tabs: 543 (table/OCR debris)
+- docs containing tabs: 542 (table/OCR debris)
 
 ## Selection
 

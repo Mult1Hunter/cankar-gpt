@@ -6,6 +6,7 @@
 
 - [ ] Design brief posted before implementation (non-trivial code - ADR 0006)
 - [ ] `design-review` agent pass run on the diff; must-fixes addressed
+      **(mandatory unless the PR is pure content - ADR 0022)**
 - [ ] L0 - hooks/CI green
 - [ ] L1 - tests added/updated for changed behavior
 - [ ] L2 - data contracts / `MANIFEST.json` updated and diffed (data PRs)
