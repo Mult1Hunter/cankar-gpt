@@ -83,6 +83,7 @@ dev = [
     { name = "mypy" },
     { name = "pre-commit" },
     { name = "pytest" },
+    { name = "pyyaml" },
     { name = "ruff" },
 ]
 tooling = [
@@ -110,6 +111,7 @@ dev = [
     { name = "mypy", specifier = ">=1.11" },
     { name = "pre-commit", specifier = ">=4.0" },
     { name = "pytest", specifier = ">=8.3" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", specifier = ">=0.15" },
 ]
 tooling = [{ name = "graphifyy", specifier = ">=0.9.23" }]

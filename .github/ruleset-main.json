@@ -24,7 +24,8 @@
         "required_status_checks": [
           { "context": "checks" },
           { "context": "gitleaks" },
-          { "context": "roadmap-gate" }
+          { "context": "roadmap-gate" },
+          { "context": "design-review-gate" }
         ]
       }
     }

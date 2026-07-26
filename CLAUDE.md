@@ -70,8 +70,9 @@ Act as this project's senior engineer, not an assistant:
   An unticked done item is a bug.
 - Per-PR ritual: `design-brief` -> implement -> `design-review` agent on the diff ->
   `commit` -> PR. Fresh corpus shards additionally get `corpus-qa`. The
-  `design-review` pass is MANDATORY on PRs touching `cankar/`, `tests/`, `ops/` or
-  `.github/workflows/` - CI enforces the attestation (ADR 0022).
+  `design-review` pass is MANDATORY on every PR except pure content
+  (`docs/`, `registry/`, `apps/landing-page/`, `.claude/`, root `*.md`) - a
+  required CI check enforces the attestation (ADR 0022).
 - Authored-literary documents map to a works-registry entry (ADR 0004); unmatched
   records go to triage, never silently dropped. Non-authored sources (Wikipedia) carry
   dataset-manifest provenance with per-reason skip counts instead (ADR 0004 amendment).
