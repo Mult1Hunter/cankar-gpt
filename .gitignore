@@ -31,6 +31,7 @@ graphify-out/
 # --- scratch (personal notes live in ../cankar-gpt-meta; see docs) ---
 scratch/
 notes
+.playwright-mcp/   # headless-render artifacts (e.g. og-image generation)
 
 # --- os / editor ---
 .DS_Store
