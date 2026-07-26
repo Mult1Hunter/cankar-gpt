@@ -74,8 +74,10 @@ Act as this project's senior engineer, not an assistant:
 
 ## graphify
 
-Codebase questions: `uv run --group tooling graphify query "<q>"` first;
-`graphify update .` after code changes.
+Codebase questions: `uv run --group tooling graphify query "<q>"` first - it
+resolves "where does X live" faster than grep. The index is rebuilt automatically
+by a SessionStart hook (ADR 0020); rerun `graphify update .` by hand only after
+large in-session refactors.
 
 <!--
 Placement doctrine (official guidance, re-checked 2026-07-26 against the Claude 5
