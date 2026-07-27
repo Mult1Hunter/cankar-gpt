@@ -45,9 +45,14 @@ it trained on.
 
 - ADR 0002: the `scripts/` layout row is abolished; `apps/web` arrival moves
   7.5 -> 4; everything else stands.
-- ADR 0005: the `scripts/<stage>/` mirror leg is replaced by per-stage
-  `cli.py`; "registry/ stays at root" is refined into the ownership partition;
-  "the root never grows" is promoted from prose to a failing test.
+- ADR 0005: fully absorbed here (2026-07-26). Its `scripts/<stage>/` mirror leg is
+  replaced by per-stage `cli.py`; "registry/ stays at root" is refined into the
+  ownership partition; "the root never grows" is promoted from prose to a failing
+  test. Its one surviving unique decision: **one package, one venv, one lockfile** -
+  subpackages rather than a uv workspace, because workspace packaging ceremony buys
+  nothing until per-stage dependency bleed (torch) actually hurts. A split stays
+  possible later, and this ADR's partition boundaries already match where it would
+  cut.
 - ADR 0003: the provenance rule gains its missing mechanism (committed
   `registry/datasets/`).
 

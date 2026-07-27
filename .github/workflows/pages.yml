@@ -1,4 +1,9 @@
 # Deploy the static landing page (apps/landing-page/) to GitHub Pages.
+# Pages `build_type` must be `workflow`, not `legacy` (branch/folder) - that is a
+# GitHub *settings* value, not repo state, so the deploy cannot be reproduced from
+# this file alone. Folder mode only publishes / or /docs, which is why the site is
+# not constrained to either. `.nojekyll` is deliberately absent: the Actions
+# artifact is served as-is and Jekyll never runs.
 # Actions-based deploy (not "deploy from a branch") so the source can be any
 # folder - folder-based Pages only allows / or /docs (ADR 0019).
 name: pages

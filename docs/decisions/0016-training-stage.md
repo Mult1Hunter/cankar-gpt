@@ -1,15 +1,23 @@
-# ADR 0016 - training stage: vendored GPT + lean AdamW loop
+# ADR 0016 - training stage: nanochat scaled down, vendored GPT, lean AdamW loop
 
-**Status:** accepted, 2026-07
+**Status:** accepted, 2026-07; absorbed ADR 0001 and ADR 0017 (2026-07-26)
 
 ## Context
 
-Phases 3-4 (and the Phase 2.5 TinyCankar rehearsal) need to train the model.
-The project is "nanochat scaled down" (ADR 0001), but nanochat is not importable
-(torch pin, ADR 0011) and its trainer is 31k lines of DDP/fp8/torch.compile/Muon
-machinery irrelevant to a 10-30M single-device model. We need the model
-architecture and a training loop we own, without letting the trainer import the
-evals stage (import-linter).
+**Codebase choice (from ADR 0001).** Options for the from-scratch training loop
+were: fork nanoGPT (simple, ~600 lines, but deprecated by its author in Nov 2025);
+use HF Transformers `Trainer` (production-grade, **but hides the loop we are trying
+to learn**); or adapt nanochat (current, and the only one with tokenizer training
+and an SFT stage as first-class pipeline steps - both hard requirements here).
+nanochat won. nanoGPT and Karpathy's "Let's build GPT" are prerequisite reading
+only; HF Transformers + PEFT enter later and deliberately, for the GaMS v2
+fine-tune.
+
+Then Phases 3-4 (and the Phase 2.5 TinyCankar rehearsal) needed to actually train.
+nanochat is not importable (torch pin, ADR 0011) and its trainer is 31k lines of
+DDP/fp8/torch.compile/Muon machinery irrelevant to a 10-30M single-device model.
+We need the model architecture and a training loop we own, without letting the
+trainer import the evals stage (import-linter).
 
 ## Decision
 
@@ -36,6 +44,12 @@ promoted to `cankar/core/holdout.py` so `train` reads it without importing evals
   nanochat's BOS-bestfit ~35% crop, which a 2.77M-token corpus cannot afford.
 - Resume is exact because the batch order is a pure function of (seed, epoch);
   the checkpoint's step fixes the data position.
+- **The checkpoint is self-describing (from ADR 0017).** `save_checkpoint` stores
+  the resolved `GPTConfig` as `gptconfig`, so `cankar evals bpb --checkpoint` reads
+  the `.pt` as a file and rebuilds the GPT from a shared bottom-layer builder. This
+  is what keeps `evals` from importing `train` - the import-linter contract that
+  makes both stages independent. `iter_holdout_texts` re-verifies each work's
+  content sha, so a drifted corpus fails loud rather than scoring seen text.
 
 ## Consequences
 
@@ -44,5 +58,7 @@ promoted to `cankar/core/holdout.py` so `train` reads it without importing evals
   on the real Cankar slice: holdout-excluded load, loss down, tokens/sec, sample,
   checkpoint, resume.
 - Vendored files are ruff/mypy-exempt (kept close to upstream) and MIT-attributed
-  (THIRD_PARTY_NOTICES.md). Muon, fp8, DDP, torch.compile, the RunPod setup.sh,
-  and held-out BPB-on-checkpoint are deferred to Phase 3.
+  (THIRD_PARTY_NOTICES.md). Muon, fp8, DDP, torch.compile and the RunPod setup.sh
+  are deferred to Phase 3.
+- Checkpoints written before the self-describing change lack `gptconfig`;
+  `bpb_on_checkpoint` rejects them rather than guessing an architecture.

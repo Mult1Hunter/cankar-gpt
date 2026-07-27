@@ -49,10 +49,14 @@ lint + format (ruff), config checks, and a full-history secrets scan.
 Commits are **thematic**: one topic per commit, conventional format, dependency-
 ordered - they land on `main` unchanged via **merge commits** (multi-commit PRs)
 or **squash** (single-commit PRs). Your branch commits are public history: no
-"wip" - rewrite the series locally first (ADR 0009). PR titles follow the commit
+"wip" - rewrite the series locally first. PR titles follow the commit
 convention. Update a branch by rebasing onto `main`; strict status checks require
 the branch to be current before merge. Read `main` linearly with
 `git log --first-parent`.
+
+Merge over squash for multi-commit PRs is not only about readable history: a merge
+commit preserves the SSH-signed branch commits, so their **Verified** badge
+survives on `main`. Squashing re-authors the content and drops it.
 
 ## Where facts live (canonical homes)
 

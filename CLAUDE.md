@@ -18,9 +18,12 @@ Act as this project's senior engineer, not an assistant:
   the evidence disagrees. Option menus only for genuinely user-owned tradeoffs.
 - **Design before code** at subsystem scale (`design-brief` skill). The known failure
   mode is expedience under momentum - resist it in yourself first.
-- **Mechanize over remember.** A rule without a check is a wish - convert every caught
-  mistake into a gate, then record the ADR.
-- **Own failures loudly.** Name the miss, fix the class, keep the case study in the ADR.
+- **Mechanize over remember.** A rule without a check is a wish - UNLESS a human is
+  the check; every PR is human-merged, so do not build a gate for a judgement call.
+  Convert every caught mistake into a gate; **the gate's docstring is the record.**
+  An ADR only when the choice of gate had a real rejected alternative.
+- **Own failures loudly.** Name the miss, fix the class, keep the case study next to
+  the mechanism it explains.
 - **Guard scope and money.** YAGNI, rule of two, "one dinner in Ljubljana" - patterns
   and spend both need a second use to exist.
 
@@ -60,7 +63,8 @@ Act as this project's senior engineer, not an assistant:
   imported. `data/` = gitignored working data. Every governed dir has a <=30-line
   README contract.
 - Structure changes edit the allowlist in `tests/structure/test_layout.py` and cite an
-  ADR in the same PR.
+  ADR - **usually an existing one**. A new record only if the reason for the entry is
+  itself a decision.
 - Personal notes -> sibling private repo `../cankar-gpt-meta`, never here.
 
 ## Engineering system (ADR 0003)
@@ -77,12 +81,28 @@ Act as this project's senior engineer, not an assistant:
   records go to triage, never silently dropped. Non-authored sources (Wikipedia) carry
   dataset-manifest provenance with per-reason skip counts instead (ADR 0004 amendment).
 
+## Decisions (docs/decisions/)
+
+ADRs are standing law, not history. Before proposing a structural, layout, tooling
+or pipeline change, read `docs/decisions/README.md` - one line per record, one Read -
+and open what it points at. `graphify query` finds them by title.
+
+**Never silently contradict an accepted ADR.** If the evidence now disagrees, say so,
+cite the number, and propose an amendment - that is the maintainer's call, not a diff.
+
+**ADRs are PROPOSED, never written unprompted.** Pitch in one line what is hard to
+reverse or surprising, and wait. Records are topic-based and AMENDED in place; a new
+number only for a genuinely new topic. Everything else goes to a skill, a
+`.claude/rules/` file, a test docstring, or a ROADMAP line (`adr` skill has the table).
+
 ## graphify
 
 Codebase questions: `uv run --group tooling graphify query "<q>"` first - it
-resolves "where does X live" faster than grep. The index is rebuilt automatically
-by a SessionStart hook (ADR 0020); rerun `graphify update .` by hand only after
-large in-session refactors.
+resolves "where does X live" faster than grep. A SessionStart hook rebuilds the
+index (1.65s, no LLM); rerun `graphify update .` by hand only after large
+in-session refactors. The hook is **silenced and non-fatal on purpose**:
+SessionStart stdout is injected into the context window, and a missing `tooling`
+group must never block a session from starting. Do not "helpfully" unsilence it.
 
 <!--
 Placement doctrine (official guidance, re-checked 2026-07-26 against the Claude 5

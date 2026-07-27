@@ -21,7 +21,7 @@ enumeration question would have caught it).
 4. **Failure modes + blast radius** - what breaks if this is wrong, and what
    it contaminates downstream (e.g. misattribution poisons the style
    classifier).
-5. **Placement** - which stage subpackage/scripts dir (ADR 0005); what
+5. **Placement** - which stage subpackage (ADR 0007); what
    existing code it reuses.
 6. **Validation plan** - what proves it works BEFORE it ships. Heuristics and
    thresholds: the calibration rule (ADR 0006) applies - labeled REAL examples
