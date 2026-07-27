@@ -306,7 +306,14 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       retiring the header-regex freshness path for those two
 - [ ] `corpus_stamp(sha)` helper in `cankar/core/reports.py`, adopted by the five
       writers (evals/holdout, evals/bpb, tokenizer/chunk, tokenizer/evaluate,
-      tokenizer/stats), so the stamp is an exact-line match not an 80-char window
+      tokenizer/stats), so the stamp is an exact-line match not an 80-char window.
+      Today those five emit five different phrasings; all parse, one by 4 chars.
+      **Blocked on a decision, not on effort:** adopting a canonical stamp means
+      regenerating each report, and `eval-holdout.md`'s writer is
+      `cankar evals holdout-freeze` - re-running it re-selects the held-out works
+      that every BPB number is measured against, which `registry/evals/README.md`
+      permits only on a deliberate corpus re-merge. Do this AT the next re-merge,
+      or accept a legacy phrasing for that one report
 - [ ] `ProvenanceStamped` base for the three manifests that all declare
       `schema_version / corpus_sha256 / git_sha / created_at` (core/holdout,
       evals/style, evals/bpb). The drift risk is the caller side - `cli.py` now

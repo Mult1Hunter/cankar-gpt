@@ -260,7 +260,13 @@ def write_bpb_report(out: Path, manifest: BpbManifest) -> Path:
         "",
         "# Held-out BPB - canonical checkpoints (ADR 0016)",
         "",
-        f"Corpus sha256 `{m.corpus_sha256}`, holdout sha256 `{m.holdout_sha256}`.",
+        # One sha per line, corpus first. `parse_stamp` anchors on "corpus" and
+        # scans an 80-char window for "sha256": with both hashes on one line the
+        # second sat 84 chars out, four from being picked up as the corpus sha
+        # (measured 2026-07-27). Not a silent failure - a wrong hash reports
+        # STALE - but the margin was accidental, so do not re-join these lines.
+        f"Corpus sha256 `{m.corpus_sha256}`.",
+        f"Held-out set sha256 `{m.holdout_sha256}` (registry/evals/holdout.json).",
         f"Scored on `{m.device}` at {m.created_at} (git `{m.git_sha}`).",
         "",
         "Bits per byte over the frozen held-out Cankar set (ADR 0013), every held-out",
