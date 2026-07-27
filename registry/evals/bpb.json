@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "corpus_sha256": "d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b",
+  "git_sha": "fe7515b",
+  "created_at": "2026-07-27T18:01:19+00:00",
+  "device": "cuda",
+  "lib_versions": {
+    "torch_version": "2.13.0",
+    "tiktoken_version": "0.13.0"
+  },
+  "checkpoints": [
+    {
+      "name": "tinycankar",
+      "sha256": "cab5a304570c33ba47841d72ac8465fe5a2920c1cea6f39d46cbb8e3d34983b2",
+      "step": 4000,
+      "n_params": 15204534,
+      "tokenizer": "v8192",
+      "bpb": 2.2227,
+      "n_works": 50
+    },
+    {
+      "name": "base",
+      "sha256": "ca672198db2c8a6c200afc57f49e67486202f79a87cb6412a28105641bcb4fe8",
+      "step": 26000,
+      "n_params": 26345726,
+      "tokenizer": "v8192",
+      "bpb": 1.5056,
+      "n_works": 50
+    },
+    {
+      "name": "cankar-v1",
+      "sha256": "e24d7de8fd2c50a18c31e7aa6e8292db4ab7b3c8d0ca9e576680789d2637fb67",
+      "step": 500,
+      "n_params": 26345726,
+      "tokenizer": "v8192",
+      "bpb": 1.4508,
+      "n_works": 50
+    }
+  ]
+}
