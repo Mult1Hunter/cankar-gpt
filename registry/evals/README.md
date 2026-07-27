@@ -11,7 +11,7 @@ unauditable), regenerated only on a deliberate corpus re-merge or retrain.
   conversion excludes ALL of these urls from training; the BPB harness scores
   the held-out works. If the corpus sha changes, re-freeze - stale hashes
   point at the wrong text.
-- `bpb.json` - held-out BPB per canonical checkpoint (ADR 0017), with each
+- `bpb.json` - held-out BPB per canonical checkpoint (ADR 0016), with each
   checkpoint's sha256 (the .pt files are gitignored, so the hash is the only
   durable statement of which weights produced the number). The README badge,
   `docs/cankar-v1.md` and the landing page cite these figures;

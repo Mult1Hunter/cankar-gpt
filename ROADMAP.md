@@ -304,8 +304,15 @@ Do not build serving or the Laravel orchestrator before the styler exists.
 - [ ] Fold `token-stats.md` and `tokenizer-eval.md` into the typed `corpus_sha256`
       manifest channel (already used by `chunks.manifest.json` and `holdout.json`),
       retiring the header-regex freshness path for those two
-- [ ] `corpus_stamp(sha)` helper in `cankar/core/reports.py`, adopted by the four
-      writers, so the stamp is an exact-line match instead of an 80-char window
+- [ ] `corpus_stamp(sha)` helper in `cankar/core/reports.py`, adopted by the five
+      writers (evals/holdout, evals/bpb, tokenizer/chunk, tokenizer/evaluate,
+      tokenizer/stats), so the stamp is an exact-line match not an 80-char window
+- [ ] `ProvenanceStamped` base for the three manifests that all declare
+      `schema_version / corpus_sha256 / git_sha / created_at` (core/holdout,
+      evals/style, evals/bpb). The drift risk is the caller side - `cli.py` now
+      types those three fields out three times and forgetting one is silent.
+      Is-a, not inheritance-for-reuse, and field order keeps the committed JSON
+      byte-compatible. Deferred: it touches three frozen artifacts at once
 - [x] Committed BPB report/manifest for canonical checkpoints: `cankar evals
       bpb-freeze` -> `registry/evals/bpb.json` + `registry/reports/bpb.md`, with
       per-checkpoint sha256 (the .pt files are gitignored). The published figures

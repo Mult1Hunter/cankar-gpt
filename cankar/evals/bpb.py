@@ -108,7 +108,10 @@ class BpbResult:
     bpb: float
     n_works: int
     step: int  # the checkpoint's training step, for tracking progress
-    n_params: int  # also a public claim ("26.3M") - measured here, not asserted
+    # Gives the separately-published "26.3M" figure a measured source. Recorded,
+    # NOT gated - the docs round to 15M/26M and reconciling that is a doc change,
+    # not this harness's job (design-review 2026-07-27).
+    n_params: int
     tokenizer: str  # per checkpoint, not per run: a future checkpoint may differ
 
 
@@ -151,8 +154,8 @@ def bpb_on_checkpoint(
 
 
 class CanonicalCheckpoint(StrEnum):
-    """The checkpoints public quality claims are made about (ADR 0008: closed
-    sets are enums). Values are the `checkpoints/<value>.pt` stems.
+    """The checkpoints public quality claims are made about. Closed set, so an
+    enum (`.claude/rules/code-standards.md`); values are `checkpoints/<v>.pt` stems.
 
     Deliberately NOT a glob over `checkpoints/`: that directory also holds
     experiment artifacts nothing claims - `nanocankar.pt` is one today, tracked
@@ -180,7 +183,7 @@ class CheckpointBpb(BaseModel):
 
 
 class BpbManifest(BaseModel):
-    """Frozen held-out BPB for the canonical checkpoints (ADR 0017).
+    """Frozen held-out BPB for the canonical checkpoints (ADR 0016).
 
     Modeled on `style.json`: generated once, committed, never hand-edited. Before
     this existed the headline number lived only in a log line that scrolled away -
@@ -190,6 +193,11 @@ class BpbManifest(BaseModel):
 
     schema_version: int = 1
     corpus_sha256: str  # holdout texts are read from this corpus; BPB is only valid against it
+    # Identifies WHICH held-out set, not just which corpus. A re-freeze with
+    # different HoldoutParams against a byte-identical corpus selects different
+    # works and yields a different BPB - the corpus stamp alone cannot see that
+    # (design-review 2026-07-27). n_works records the size, not the identity.
+    holdout_sha256: str
     git_sha: str
     created_at: str
     device: str  # cuda and cpu differ in the last float places
@@ -233,6 +241,14 @@ def score_canonical(
                 n_works=r.n_works,
             )
         )
+
+    # Every row reads the same frozen holdout, so this cannot currently differ -
+    # it is asserted here, at the altitude that owns the invariant, rather than
+    # rendered as a caveat in the report. A split means the rows were scored
+    # against different sets and the progression is not a comparison.
+    counts = sorted({r.n_works for r in rows})
+    if len(counts) > 1:
+        raise CankarError(f"rows scored over differing held-out sizes {counts} - not comparable")
     return rows
 
 
@@ -242,15 +258,16 @@ def write_bpb_report(out: Path, manifest: BpbManifest) -> Path:
     L: list[str] = [
         generated_marker("cankar evals bpb-freeze", snapshot=True),
         "",
-        "# Held-out BPB - canonical checkpoints (ADR 0017)",
+        "# Held-out BPB - canonical checkpoints (ADR 0016)",
         "",
-        f"Corpus sha256 `{m.corpus_sha256}`.",
+        f"Corpus sha256 `{m.corpus_sha256}`, holdout sha256 `{m.holdout_sha256}`.",
         f"Scored on `{m.device}` at {m.created_at} (git `{m.git_sha}`).",
         "",
         "Bits per byte over the frozen held-out Cankar set (ADR 0013), every held-out",
-        "token scored exactly once. Lower is better. **These are the numbers the README",
-        "badge, `docs/cankar-v1.md` and the landing page cite** -",
-        "`tests/evals/test_bpb_claims.py` fails if any of them drifts from this file.",
+        "token scored exactly once. Lower is better. **These are the numbers published",
+        "on the README badge, in the docs and on the landing page** -",
+        "`tests/evals/test_bpb_claims.py` gates all of those against",
+        "`registry/evals/bpb.json`, this file included.",
         "",
         "| checkpoint | params | tokenizer | step | held-out BPB |",
         "|---|---:|---|---:|---:|",
@@ -260,13 +277,10 @@ def write_bpb_report(out: Path, manifest: BpbManifest) -> Path:
             f"| `{c.name}` | {c.n_params / 1e6:.1f}M | `{c.tokenizer}` | "
             f"{c.step:,} | **{c.bpb:.4f}** |"
         )
-    # every row reads the same frozen holdout, so a split here means one row was
-    # scored against a different set and the comparison is meaningless - say so.
-    works = sorted({c.n_works for c in m.checkpoints})
-    scope = f"{works[0]} held-out works" if len(works) == 1 else f"DIFFERING work counts {works}"
     L += [
         "",
-        f"All rows scored over the same {scope}.",
+        f"All rows scored over the same {m.checkpoints[0].n_works} held-out works "
+        "(`score_canonical` raises otherwise).",
         "",
         "## Reproducing",
         "",

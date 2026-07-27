@@ -148,6 +148,7 @@ def _bpb_freeze(args: argparse.Namespace) -> int:
     )
     manifest = bpb.BpbManifest(
         corpus_sha256=sha256_of(corpus),
+        holdout_sha256=sha256_of(holdout_manifest()),
         git_sha=git_sha(),
         created_at=utc_now_iso(),
         device=device,
@@ -185,7 +186,7 @@ def register(parser: argparse.ArgumentParser) -> None:
 
     f = sub.add_parser(
         "bpb-freeze",
-        help="score the canonical checkpoints and commit the provenance (ADR 0017)",
+        help="score the canonical checkpoints and commit the provenance (ADR 0016)",
     )
     f.add_argument("--device", default=None, help="cuda/cpu (default: auto)")
     f.set_defaults(func=_bpb_freeze)

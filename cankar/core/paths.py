@@ -131,7 +131,7 @@ def holdout_report() -> Path:
 
 
 def bpb_manifest() -> Path:
-    """Frozen held-out BPB for the canonical checkpoints (ADR 0017). The public
+    """Frozen held-out BPB for the canonical checkpoints (ADR 0016). The public
     quality claims (README badge, docs/cankar-v1.md, the landing page) cite these
     numbers; this is the artifact they are auditable against."""
     return repo_root() / "registry" / "evals" / "bpb.json"
