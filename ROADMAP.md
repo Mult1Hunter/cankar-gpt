@@ -1,6 +1,6 @@
 # CankarGPT - Roadmap
 
-> A from-scratch Slovene micro-LLM (~40M params) trained on public-domain literature,
+> A from-scratch Slovene micro-LLM (26.3M params) trained on public-domain literature,
 > specialized in Ivan Cankar's voice, extended with plain->Cankar style transfer via
 > synthetic parallel data, orchestrated with a large knowledge model, and served for ~€0.
 >
@@ -227,6 +227,10 @@ Do not build serving or the Laravel orchestrator before the styler exists.
 - [ ] Claude Batch API de-styling -> plain modern Slovene; pair `(plain -> original Cankar)`
 - [ ] **Distribution-shift fix (A1):** ONE shared "plain Slovene register" prompt, reused verbatim for
   (a) de-styling in training data generation and (b) draft-writing at inference. Non-negotiable design invariant.
+  *(the definition + its one-home gate landed early: `cankar/core/register.py`,
+  `tests/structure/test_register_home.py`. Unticked on purpose - neither consumer
+  exists yet, so "reused verbatim" is not true until (a) and (b) both import
+  `PLAIN_REGISTER`)*
 - [ ] QA: spot-check 50-100 pairs; auto-filter bottom 5-10% (length-ratio + LLM meaning score)
 - [ ] Publish dataset to HF Hub (`cankar-parallel`) - target side PD, source side own output; standalone contribution
 

@@ -1,1 +1,1 @@
-"""Cross-stage data contracts: corpus document schema, shard manifests."""
+"""Cross-stage contracts: corpus document schema, shard manifests, shared prompts."""
