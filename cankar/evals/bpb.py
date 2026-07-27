@@ -18,16 +18,20 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 import tiktoken
 import torch
+from pydantic import BaseModel
 
 from cankar.core.encoding import bos_id as resolve_bos_id  # aliased: `bos_id` is a param name below
 from cankar.core.encoding import load_encoding
 from cankar.core.errors import CankarError
 from cankar.core.holdout import load_holdout
+from cankar.core.manifest import sha256_of
+from cankar.core.reports import generated_marker, write_report
 from cankar.evals.holdout import iter_holdout_texts
 from cankar.evals.vendored_bpb import BpbModel, evaluate_bpb
 from cankar.model.build import build_gpt
@@ -104,6 +108,11 @@ class BpbResult:
     bpb: float
     n_works: int
     step: int  # the checkpoint's training step, for tracking progress
+    # Gives the separately-published "26.3M" figure a measured source. Recorded,
+    # NOT gated - the docs round to 15M/26M and reconciling that is a doc change,
+    # not this harness's job (design-review 2026-07-27).
+    n_params: int
+    tokenizer: str  # per checkpoint, not per run: a future checkpoint may differ
 
 
 def bpb_on_checkpoint(
@@ -135,4 +144,157 @@ def bpb_on_checkpoint(
     bpb = holdout_bpb(
         model, texts, enc, token_bytes, state["gptconfig"]["sequence_len"], resolve_bos_id(enc)
     )
-    return BpbResult(bpb=bpb, n_works=len(texts), step=int(state["step"]))
+    return BpbResult(
+        bpb=bpb,
+        n_works=len(texts),
+        step=int(state["step"]),
+        n_params=sum(p.numel() for p in model.parameters()),
+        tokenizer=tokenizer_name,
+    )
+
+
+class CanonicalCheckpoint(StrEnum):
+    """The checkpoints public quality claims are made about. Closed set, so an
+    enum (`.claude/rules/code-standards.md`); values are `checkpoints/<v>.pt` stems.
+
+    Deliberately NOT a glob over `checkpoints/`: that directory also holds
+    experiment artifacts nothing claims - `nanocankar.pt` is one today, tracked
+    in no doc, config or registry entry. Globbing would publish a BPB for a model
+    with no story attached to it.
+    """
+
+    TINYCANKAR = "tinycankar"
+    BASE = "base"
+    CANKAR_V1 = "cankar-v1"
+
+
+class CheckpointBpb(BaseModel):
+    """One scored checkpoint. `sha256` is what makes the row auditable - the .pt
+    is gitignored, so the hash is the only durable statement of WHICH weights
+    produced this number."""
+
+    name: str
+    sha256: str
+    step: int
+    n_params: int
+    tokenizer: str
+    bpb: float
+    n_works: int
+
+
+class BpbManifest(BaseModel):
+    """Frozen held-out BPB for the canonical checkpoints (ADR 0016).
+
+    Modeled on `style.json`: generated once, committed, never hand-edited. Before
+    this existed the headline number lived only in a log line that scrolled away -
+    the README badge, docs/cankar-v1.md and the landing page all cited a figure
+    nothing in the repo could reproduce or contradict.
+    """
+
+    schema_version: int = 1
+    corpus_sha256: str  # holdout texts are read from this corpus; BPB is only valid against it
+    # Identifies WHICH held-out set, not just which corpus. A re-freeze with
+    # different HoldoutParams against a byte-identical corpus selects different
+    # works and yields a different BPB - the corpus stamp alone cannot see that
+    # (design-review 2026-07-27). n_works records the size, not the identity.
+    holdout_sha256: str
+    git_sha: str
+    created_at: str
+    device: str  # cuda and cpu differ in the last float places
+    lib_versions: dict[str, str]
+    checkpoints: list[CheckpointBpb]
+
+
+def score_canonical(
+    checkpoints_dir: Path,
+    corpus_path: Path,
+    holdout_path: Path,
+    tokenizer_base_dir: Path,
+    device: str,
+) -> list[CheckpointBpb]:
+    """Score every canonical checkpoint, in enum order (the progression order the
+    report and the docs table both present).
+
+    A missing checkpoint raises rather than being skipped: a silently short table
+    still reads as "the three-model progression" and would understate the claim
+    it exists to support.
+    """
+    rows: list[CheckpointBpb] = []
+    for ckpt in CanonicalCheckpoint:
+        path = checkpoints_dir / f"{ckpt.value}.pt"
+        if not path.exists():
+            raise CankarError(
+                f"canonical checkpoint missing: {path}. All of "
+                f"{[c.value for c in CanonicalCheckpoint]} must be present - a partial "
+                "table would misreport the progression (pull from HF/R2, or retrain)."
+            )
+        log.info("scoring %s ...", path.name)
+        r = bpb_on_checkpoint(path, corpus_path, holdout_path, tokenizer_base_dir, device)
+        rows.append(
+            CheckpointBpb(
+                name=ckpt.value,
+                sha256=sha256_of(path),
+                step=r.step,
+                n_params=r.n_params,
+                tokenizer=r.tokenizer,
+                bpb=round(r.bpb, 4),
+                n_works=r.n_works,
+            )
+        )
+
+    # Every row reads the same frozen holdout, so this cannot currently differ -
+    # it is asserted here, at the altitude that owns the invariant, rather than
+    # rendered as a caveat in the report. A split means the rows were scored
+    # against different sets and the progression is not a comparison.
+    counts = sorted({r.n_works for r in rows})
+    if len(counts) > 1:
+        raise CankarError(f"rows scored over differing held-out sizes {counts} - not comparable")
+    return rows
+
+
+def write_bpb_report(out: Path, manifest: BpbManifest) -> Path:
+    """Human-readable face of bpb.json - the progression table the docs cite."""
+    m = manifest
+    L: list[str] = [
+        generated_marker("cankar evals bpb-freeze", snapshot=True),
+        "",
+        "# Held-out BPB - canonical checkpoints (ADR 0016)",
+        "",
+        f"Corpus sha256 `{m.corpus_sha256}`, holdout sha256 `{m.holdout_sha256}`.",
+        f"Scored on `{m.device}` at {m.created_at} (git `{m.git_sha}`).",
+        "",
+        "Bits per byte over the frozen held-out Cankar set (ADR 0013), every held-out",
+        "token scored exactly once. Lower is better. **These are the numbers published",
+        "on the README badge, in the docs and on the landing page** -",
+        "`tests/evals/test_bpb_claims.py` gates all of those against",
+        "`registry/evals/bpb.json`, this file included.",
+        "",
+        "| checkpoint | params | tokenizer | step | held-out BPB |",
+        "|---|---:|---|---:|---:|",
+    ]
+    for c in m.checkpoints:
+        L.append(
+            f"| `{c.name}` | {c.n_params / 1e6:.1f}M | `{c.tokenizer}` | "
+            f"{c.step:,} | **{c.bpb:.4f}** |"
+        )
+    L += [
+        "",
+        f"All rows scored over the same {m.checkpoints[0].n_works} held-out works "
+        "(`score_canonical` raises otherwise).",
+        "",
+        "## Reproducing",
+        "",
+        "```",
+        "uv run cankar evals bpb-freeze",
+        "```",
+        "",
+        "Then `git diff` this file and `registry/evals/bpb.json`. The checkpoints are",
+        "gitignored, so the per-row `sha256` in the manifest is the durable statement of",
+        "which weights produced each number.",
+        "",
+        "## Library versions",
+        "",
+        *[f"- `{k}`: {v}" for k, v in sorted(m.lib_versions.items())],
+    ]
+    write_report(out, L)
+    return out

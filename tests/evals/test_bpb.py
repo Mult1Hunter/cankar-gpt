@@ -195,3 +195,13 @@ def test_bpb_on_checkpoint_rejects_old_format(tmp_path) -> None:
     torch.save({"step": 1, "model": {}}, ckpt)  # no gptconfig
     with pytest.raises(CankarError, match="self-describing"):
         bpb.bpb_on_checkpoint(ckpt, tmp_path / "c.jsonl", tmp_path / "h.json", tmp_path, "cpu")
+
+
+def test_score_canonical_raises_on_a_missing_checkpoint(tmp_path) -> None:
+    """A partial table still reads as "the three-model progression", so an absent
+    checkpoint must stop the run rather than shorten the comparison. Raises before
+    any model load, so an empty dir is enough."""
+    from cankar.core.errors import CankarError
+
+    with pytest.raises(CankarError, match="canonical checkpoint missing"):
+        bpb.score_canonical(tmp_path, tmp_path / "c.jsonl", tmp_path / "h.json", tmp_path, "cpu")

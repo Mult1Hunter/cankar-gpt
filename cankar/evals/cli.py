@@ -4,6 +4,7 @@ Registered under the single `cankar` console entry (ADR 0007):
     cankar evals holdout-freeze --name v8192      # freeze the held-out set (ADR 0013)
     cankar evals style-train                       # train the style classifier (ADR 0015)
     cankar evals bpb --checkpoint <path>           # held-out BPB for a checkpoint (ADR 0017)
+    cankar evals bpb-freeze                        # score the canonical set, commit provenance
 """
 
 from __future__ import annotations
@@ -25,6 +26,9 @@ from cankar.core.manifest import (
     write_manifest,
 )
 from cankar.core.paths import (
+    bpb_manifest,
+    bpb_report,
+    checkpoints_dir,
     holdout_manifest,
     holdout_report,
     merged_shard,
@@ -136,6 +140,32 @@ def _bpb(args: argparse.Namespace) -> int:
     return 0
 
 
+def _bpb_freeze(args: argparse.Namespace) -> int:
+    device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
+    corpus = merged_shard()
+    rows = bpb.score_canonical(
+        checkpoints_dir(), corpus, holdout_manifest(), tokenizer_base_dir(), device
+    )
+    manifest = bpb.BpbManifest(
+        corpus_sha256=sha256_of(corpus),
+        holdout_sha256=sha256_of(holdout_manifest()),
+        git_sha=git_sha(),
+        created_at=utc_now_iso(),
+        device=device,
+        lib_versions=library_versions("torch", "tiktoken"),
+        checkpoints=rows,
+    )
+    out = write_manifest(manifest, bpb_manifest())
+    report = bpb.write_bpb_report(bpb_report(), manifest)
+    log.info(
+        "froze held-out BPB: %s -> %s + %s",
+        ", ".join(f"{c.name} {c.bpb:.4f}" for c in rows),
+        out,
+        report,
+    )
+    return 0
+
+
 def register(parser: argparse.ArgumentParser) -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -153,3 +183,10 @@ def register(parser: argparse.ArgumentParser) -> None:
     b.add_argument("--checkpoint", type=Path, required=True, help="a cankar train checkpoint (.pt)")
     b.add_argument("--device", default=None, help="cuda/cpu (default: auto)")
     b.set_defaults(func=_bpb)
+
+    f = sub.add_parser(
+        "bpb-freeze",
+        help="score the canonical checkpoints and commit the provenance (ADR 0016)",
+    )
+    f.add_argument("--device", default=None, help="cuda/cpu (default: auto)")
+    f.set_defaults(func=_bpb_freeze)
