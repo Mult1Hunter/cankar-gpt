@@ -1,8 +1,9 @@
 {
   "schema_version": 1,
   "corpus_sha256": "d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b",
-  "git_sha": "fe7515b",
-  "created_at": "2026-07-27T18:01:19+00:00",
+  "holdout_sha256": "07ccca96a4fe339d50a9da9d38f71b4bcec98962e601d6460b633edca96331a2",
+  "git_sha": "a38c2a6",
+  "created_at": "2026-07-27T18:13:19+00:00",
   "device": "cuda",
   "lib_versions": {
     "torch_version": "2.13.0",
