@@ -1,6 +1,6 @@
 # CankarGPT - Roadmap
 
-> A from-scratch Slovene micro-LLM (~40M params) trained on public-domain literature,
+> A from-scratch Slovene micro-LLM (26.3M params) trained on public-domain literature,
 > specialized in Ivan Cankar's voice, extended with plain->Cankar style transfer via
 > synthetic parallel data, orchestrated with a large knowledge model, and served for ~€0.
 >
