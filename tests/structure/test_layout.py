@@ -4,8 +4,9 @@ Adding a root entry or a stage is a conscious act: edit the allowlist/tuple
 here AND cite an ADR in the same PR. A rule without a check is a wish.
 """
 
-import subprocess
 from pathlib import Path
+
+from tests.conftest import tracked_files
 
 REPO = Path(__file__).resolve().parent.parent.parent
 
@@ -47,11 +48,6 @@ BANNED_BASENAMES = {"utils.py", "helpers.py", "common.py", "misc.py"}
 BANNED_PATTERNS = ("_v2.", "_new.", "_old.", "temp_", "stuff")
 
 GENERATED_MARKER = "<!-- GENERATED"
-
-
-def tracked_files() -> list[str]:
-    out = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True, check=True)
-    return out.stdout.splitlines()
 
 
 def test_root_is_frozen() -> None:
