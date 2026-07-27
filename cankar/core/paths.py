@@ -130,6 +130,18 @@ def holdout_report() -> Path:
     return repo_root() / "registry" / "reports" / "eval-holdout.md"
 
 
+def bpb_manifest() -> Path:
+    """Frozen held-out BPB for the canonical checkpoints (ADR 0017). The public
+    quality claims (README badge, docs/cankar-v1.md, the landing page) cite these
+    numbers; this is the artifact they are auditable against."""
+    return repo_root() / "registry" / "evals" / "bpb.json"
+
+
+def bpb_report() -> Path:
+    """Snapshot report (computed from gitignored data/ + checkpoints/)."""
+    return repo_root() / "registry" / "reports" / "bpb.md"
+
+
 def style_manifest() -> Path:
     """Frozen style-classifier provenance (ADR 0015): versions, config, seed,
     metrics, artifact sha256, deploy-validation status. Committed, load-bearing."""

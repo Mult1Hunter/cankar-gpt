@@ -306,7 +306,10 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       retiring the header-regex freshness path for those two
 - [ ] `corpus_stamp(sha)` helper in `cankar/core/reports.py`, adopted by the four
       writers, so the stamp is an exact-line match instead of an 80-char window
-- [ ] Committed BPB report/manifest for canonical checkpoints (they now exist)
+- [x] Committed BPB report/manifest for canonical checkpoints: `cankar evals
+      bpb-freeze` -> `registry/evals/bpb.json` + `registry/reports/bpb.md`, with
+      per-checkpoint sha256 (the .pt files are gitignored). The published figures
+      are gated against it (`tests/evals/test_bpb_claims.py`) - PR #45
 - [ ] `ops/lib/attest.sh` - extract when a THIRD gate needs the attestation check
 
 ## Risk register (from agent review)
