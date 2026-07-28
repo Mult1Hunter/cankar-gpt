@@ -13,6 +13,7 @@ from pathlib import Path
 
 from cankar.pairs.destyle import (
     MAX_TOKENS,
+    MIN_CARONS_FOR_RATIO,
     SYSTEM_PROMPT,
     Anomaly,
     BatchReceipt,
@@ -117,6 +118,19 @@ def test_commentary_instead_of_a_rewrite_is_rejected() -> None:
     than rewriting it, opening with a markdown heading."""
     r = _response("x", [{"type": "text", "text": "# Bilo je sonce.\n\nTo je preprosta izjava."}])
     assert classify_response(_passage(), r)[1] is Anomaly.NOT_A_REWRITE
+    eng = _response("x", [{"type": "text", "text": "Here is the plain rendering: Vstal je."}])
+    assert classify_response(_passage(), eng)[1] is Anomaly.NOT_A_REWRITE
+
+
+def test_slovene_prose_beginning_like_a_lead_in_is_not_a_preamble() -> None:
+    """ "Tukaj je" is ordinary Slovene and rejected a correct rewrite of
+    "Tukaj je napisano, trdno prisito ..." on the real run. Only markup and
+    ENGLISH openers mark commentary - the output side is always Slovene
+    (2026-07-28)."""
+    src = "»Tukaj je napisano, trdno prišito, ni je več moči na svetu, ki bi izbrisala to sramoto!«"
+    out = "Tukaj je napisano, trdno prišito, ni več moči na svetu, ki bi izbrisala to sramoto!"
+    r = _response("x", [{"type": "text", "text": out}])
+    assert classify_response(_passage(text=src), r)[1] is None
 
 
 def test_length_collapse_and_runaway_are_rejected() -> None:
@@ -128,10 +142,33 @@ def test_length_collapse_and_runaway_are_rejected() -> None:
 
 def test_dropped_carons_are_rejected() -> None:
     """Sliding out of Slovene orthography produces fluent text that is wrong in
-    a way a length check cannot see."""
-    stripped = GOOD.replace("š", "s").replace("ž", "z").replace("Š", "S").replace("č", "c")
+    a way a length check cannot see. Source must be caron-dense enough for the
+    ratio to mean anything - see the vocabulary-substitution test below."""
+    caron_rich = (
+        "Šel je čez cesto, žalosten in čemeren, ker mu je žena rekla, da še ni čas. "
+        "Čez čas je čutil, da mu je težko, in šepetal je žalostno pesem."
+    )
+    assert sum(c in "čšžČŠŽ" for c in caron_rich) >= MIN_CARONS_FOR_RATIO
+    stripped = caron_rich.replace("š", "s").replace("ž", "z").replace("č", "c")
+    stripped = stripped.replace("Š", "S").replace("Ž", "Z").replace("Č", "C")
+    p = _passage(text=caron_rich)
     r = _response("x", [{"type": "text", "text": stripped}])
-    assert classify_response(_passage(), r)[1] is Anomaly.LOST_DIACRITICS
+    assert classify_response(p, r)[1] is Anomaly.LOST_DIACRITICS
+
+
+def test_caron_ratio_is_not_applied_to_caron_sparse_sources() -> None:
+    """The gate as first written rejected 87 flawless pairs on the real run.
+    De-styling legitimately swaps caron-bearing archaisms for caron-free modern
+    words - "razkrecil" -> "razprl" leaves a 1-caron source at 0.00 retention -
+    so below MIN_CARONS_FOR_RATIO the ratio is noise, not signal (2026-07-28)."""
+    src = "Iztegnil je roke proti njej, razkrečil dolge prste."
+    out = "Iztegnil je roke proti njej, razprl svoje dolge prste."
+    assert sum(c in "čšžČŠŽ" for c in src) < MIN_CARONS_FOR_RATIO
+    assert caron_retention(src, out) == 0.0
+    assert (
+        classify_response(_passage(text=src), _response("x", [{"type": "text", "text": out}]))[1]
+        is None
+    )
 
 
 def test_caron_retention_is_one_when_source_has_none() -> None:

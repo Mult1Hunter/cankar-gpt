@@ -141,14 +141,38 @@ class Anomaly(StrEnum):
 MIN_LENGTH_RATIO = 0.5
 MAX_LENGTH_RATIO = 1.8
 
-# A rewrite that opens with markdown or an explanatory lead-in is not a rewrite.
+# A rewrite that opens with markdown or an English lead-in is not a rewrite.
 # Observed on a throwaway probe: "# Bilo je sonce.\n\nTo je preprosta izjava ..."
-_PREAMBLE_MARKERS = ("#", "```", "Tukaj je", "Evo ", "Prevod:", "Rewritten", "Here is")
+#
+# Markup and ENGLISH only. Slovene lead-ins were tried and removed: "Tukaj je"
+# rejected a correct rewrite of "Tukaj je napisano, trdno prisito ..." - the
+# phrase is ordinary Slovene, and the output side of these pairs is always
+# Slovene, so any English opener is unambiguously the model talking to us
+# (2026-07-28).
+_PREAMBLE_MARKERS = ("#", "```", "Here is", "Rewritten", "Translation:", "The passage")
 
 # Cankar's prose is caron-dense; a rewrite that drops them wholesale has slid
-# into a neighbouring orthography. Ratio, not count, so short passages are fair.
+# into a neighbouring orthography. Ratio, not count, so long passages are fair.
 _CARONS = frozenset("čšžČŠŽ")
-MIN_CARON_RETENTION = 0.35
+
+# The ratio only carries signal when the source has enough carons to divide by.
+# Measured over the full 10,049-response run: p1 retention is 0.00 for sources
+# with 0-2 carons but 0.62 for sources with 11+, because de-styling legitimately
+# swaps caron-bearing archaisms for caron-free modern words - "razkrecil" ->
+# "razprl" leaves a 1-caron source at 0.00 retention with flawless output.
+# Applying the ratio below this floor rejected 87 perfectly good pairs
+# (2026-07-28); every one was a false positive.
+MIN_CARONS_FOR_RATIO = 8
+
+# Targets COLLAPSE, not variation. Retention of 0.24-0.33 turned out to be
+# ordinary vocabulary substitution even above the floor - one archaic word can
+# carry four carons ("cicikovscina" -> "prevara") - so a threshold that treats
+# a quarter-retention as corruption rejects good pairs. Real orthographic
+# collapse lands near zero. Measured: no output in the 10,049-response run
+# dropped its carons wholesale, so this is a guard against a model change (the
+# Haiku pilot is the reason to believe a weaker one would trip it), not a live
+# filter. It is proven to fire by test, not by production traffic.
+MIN_CARON_RETENTION = 0.1
 
 
 class Pair(BaseModel):
@@ -239,7 +263,11 @@ def classify_response(passage: Passage, result: dict[str, Any]) -> tuple[str, An
     ratio = len(text) / len(passage.text)
     if not MIN_LENGTH_RATIO <= ratio <= MAX_LENGTH_RATIO:
         return text, Anomaly.LENGTH_OUTLIER
-    if caron_retention(passage.text, text) < MIN_CARON_RETENTION:
+    source_carons = sum(ch in _CARONS for ch in passage.text)
+    if (
+        source_carons >= MIN_CARONS_FOR_RATIO
+        and caron_retention(passage.text, text) < MIN_CARON_RETENTION
+    ):
         return text, Anomaly.LOST_DIACRITICS
     return text, None
 
