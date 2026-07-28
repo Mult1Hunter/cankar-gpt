@@ -9,7 +9,10 @@ compares against it.
 Modelled on `tests/evals/test_bpb_claims.py`, which does the same job for
 published numbers. Same known blind spot, stated plainly: this proves each
 quoted string exists in a real pair, NOT that the two sides of a quoted pair
-belong to each other. A sample doc that paired one work's Cankar text with
+belong to each other, and NOT that a claimed vocabulary swap runs in the
+direction the prose claims. A reversed row (`strmel` -> `zrl`, published as
+modernization when it is the reverse) passed this suite and was caught by a
+human reading it. A sample doc that paired one work's Cankar text with
 another's plain rendering would read green here.
 """
 

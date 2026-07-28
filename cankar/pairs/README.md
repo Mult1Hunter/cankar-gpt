@@ -16,10 +16,15 @@ register (design invariant #1, `cankar/core/register.py`).
   is a speaker turn, not a prose unit), and non-wikivir sources (dLib has no
   paragraph structure to read). Default-deny on all three.
   Writes `data/pairs/passages.jsonl` + a committed manifest + a report.
-- `cli.py` - `cankar pairs segment`.
+- `destyle.py` - Batch API de-styling into plain Slovene. **Spends money**, so
+  the design property is that no failure after payment costs money again:
+  content-addressed `custom_id`, raw responses persisted before parsing, an
+  append-only receipt ledger reconciled against the API before any submit, and
+  nine anomaly classes quarantined with a reason rather than dropped.
+- `publish.py` - HF Hub upload, a card generated from the manifests, and the
+  committed sample excerpts `docs/` is gated against.
+- `cli.py` - `segment`, `destyle` (`--dry-run`/`--parse-only`), `publish`.
 
-The manifest hashes the artifact it describes, so "regenerate and diff" is
-followable. It deliberately does NOT stamp the register: segmentation never
-reads it, and that stamp belongs on the de-styled pairs manifest.
-
-De-styling (Batch API) and HF Hub publication are the next deliverables.
+Each manifest hashes the artifact it describes, so "regenerate and diff" is
+followable. Only the PAIRS manifest stamps the register: segmentation never
+reads it.

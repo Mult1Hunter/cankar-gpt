@@ -331,9 +331,10 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       retiring the header-regex freshness path for those two
 - [ ] `corpus_stamp(sha)` helper in `cankar/core/reports.py`, adopted by the five
       writers (evals/holdout, evals/bpb, tokenizer/chunk, tokenizer/evaluate,
-      tokenizer/stats, pairs/segment), so the stamp is an exact-line match not an
-      80-char window. Six writers now, still five phrasings - `passages.md` reuses
-      `bpb.md`'s exact line - and all parse, one by 4 chars.
+      tokenizer/stats, pairs/segment, pairs/destyle), so the stamp is an exact-line
+      match not an 80-char window. Seven writers now, still five phrasings -
+      `passages.md` and `pairs.md` reuse `bpb.md`'s exact line - all parse, one by
+      4 chars.
       **Blocked on a decision, not on effort:** adopting a canonical stamp means
       regenerating each report, and `eval-holdout.md`'s writer is
       `cankar evals holdout-freeze` - re-running it re-selects the held-out works
@@ -345,10 +346,11 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       unit is absent and recovering it means guessing where breaks were. Skipped
       because wikivir prose alone yields 13,872 passages against a ~10k need - revisit
       only if Phase 6 turns out to be data-starved, never for coverage's sake
-- [ ] `ProvenanceStamped` base for the four manifests that all declare
+- [ ] `ProvenanceStamped` base for the FIVE manifests that all declare
       `schema_version / corpus_sha256 / git_sha / created_at` (core/holdout,
-      evals/style, evals/bpb, pairs/segment). The drift risk is the caller side -
-      `cli.py` now types those fields out four times and forgetting one is silent.
+      evals/style, evals/bpb, pairs/segment, pairs/destyle). The drift risk is the
+      caller side - `cli.py` now types those fields out five times and forgetting
+      one is silent. Phase 5 added two at once, so the trigger has now fired.
       Is-a, not inheritance-for-reuse, and field order keeps the committed JSON
       byte-compatible. Deferred: it touches three frozen artifacts at once
 - [x] Committed BPB report/manifest for canonical checkpoints: `cankar evals

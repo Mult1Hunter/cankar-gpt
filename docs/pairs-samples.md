@@ -23,7 +23,12 @@ aged by 1900, and which no Slovene speaker writes today:
 | `izpregovoril` | `izrekel` | uttered |
 | `zakaj` (conjunction) | `namreč`, `kajti` | for, because |
 | `tedaj` | `takrat` | then |
-| `strmel` | `zrl` | stared |
+
+One row was removed from this table after review: `strmel` -> `zrl`. It looked
+like modernization and is the reverse - `strmeti` is the ordinary modern verb,
+`zreti` the elevated one. The de-styler had *archaized* there, and the table
+published the mistake as evidence. The gate below certifies that a swap
+occurred, never its direction.
 
 `zakaj` is the interesting one. In modern Slovene it means only "why". Cankar
 uses it constantly as "for/because" - a sentence-opening conjunction that
@@ -46,12 +51,12 @@ clause, which is where modern Slovene puts it:
 >
 > **plain:** Zvečer so moški sedeli v krčmi in ugibali; tudi davkar je raje molčal, kot da bi izrekel prvo besedo.
 
-**Mimo življenja** - `duri` becomes `vrata`, and the inverted `Vse temno je
-bilo` is straightened to `Vse je bilo temno`:
+**Za križem** - two archaisms in one clause: `duri` becomes `vrata`, and
+`život` (body, now dated) becomes plain `telo`:
 
-> **Cankar:** Odprla je duri, šla je skozi temno kuhinjo in vežo, in po stopnicah navzdol. Vse temno je bilo;
+> **Cankar:** ko je život bolan, počitka željan, ne svobode, se odpro duri brez potrebe
 >
-> **plain:** Odprla je vrata, šla je skozi temno kuhinjo in vežo, potem po stopnicah navzdol. Vse je bilo temno;
+> **plain:** telo bolno in si želi počitka, ne svobode, se vrata odprejo brez potrebe
 
 ## What this tells us about the hard part
 
