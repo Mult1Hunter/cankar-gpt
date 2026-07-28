@@ -168,7 +168,17 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       status to PENDING rather than inheriting a measurement of different weights
       (the retrain reproduced the artifact byte-identically, so the manifest now
       carries the verdict).
-- [ ] LLM-judge template for meaning preservation *(deferred to Phase 6 - needs Phase-5 pairs; building now is speculative)*
+- [x] **LLM meaning-judge built (eval pillar #3, `cankar evals judge`).** Scores
+      meaning / voice / fluency on 1-5, absolute per item rather than pairwise
+      (pairwise buys a documented position bias up to 75%). Every batch carries
+      BLIND CONTROLS with a known answer, because an unvalidated instrument is
+      what produced the style classifier: ECHO (source verbatim -> must be
+      meaning 5, voice 1), MISMATCH (real Cankar, wrong content -> meaning 1,
+      voice high), REAL_CANKAR (ceiling). Measured: ECHO 5.00/1.00, MISMATCH
+      1.00/3.95, margins +2.65 voice / +3.60 meaning, axes independent -> USABLE.
+      Ceilings are measured not assumed: real Cankar scores 3.65 on VOICE, so 5
+      is not a reachable target and scores are reported against the ceiling.
+      Cost $1.12 actual. registry/reports/judge.md
 - [ ] Dev set design: 200 held-out pairs **+ 50 fresh drafts**. Held-out half DONE:
       `cankar pairs segment/destyle --set holdout` -> **289 pairs** from the 12
       held-out prose works, zero passage- AND work-level overlap with the 9,950

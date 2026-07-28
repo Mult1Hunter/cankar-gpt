@@ -253,6 +253,19 @@ def style_report() -> Path:
     return repo_root() / "registry" / "reports" / "style.md"
 
 
+def judge_raw() -> Path:
+    """Raw judge responses, append-only, written BEFORE parsing. These bytes are
+    what the money bought: a parser bug must cost a re-parse, never a
+    re-purchase (the Phase 5 rule, re-learned here the expensive way)."""
+    return repo_root() / "data" / "evals" / "judge-raw.jsonl"
+
+
+def judge_report() -> Path:
+    """Eval pillar #3: the judge's control outcome and the scores it gates.
+    Snapshot - it needs a checkpoint and a paid API call, so CI cannot make it."""
+    return repo_root() / "registry" / "reports" / "judge.md"
+
+
 def style_deploy_manifest() -> Path:
     """Frozen deploy verdict, bound to the classifier sha it was measured on."""
     return repo_root() / "registry" / "evals" / "style-deploy.json"
