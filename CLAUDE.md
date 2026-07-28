@@ -69,14 +69,19 @@ Act as this project's senior engineer, not an assistant:
 
 ## Engineering system (ADR 0003)
 
-- All work lands via PR - never push `main` directly.
+- `main` moves only via a PR the maintainer merges - never push it directly.
+  **One PR carries several features, not one each** (ADR 0003 amendment 2026-07-28):
+  a feature branch accumulates thematic commits and lands once. PR creation and
+  merge still need explicit maintainer say-so, every time.
 - Every PR that completes a ROADMAP deliverable ticks its checkbox in the same PR.
   An unticked done item is a bug.
-- Per-PR ritual: `design-brief` -> implement -> `design-review` agent on the diff ->
-  `commit` -> PR. Fresh corpus shards additionally get `corpus-qa`. The
-  `design-review` pass is MANDATORY on every PR except pure content
-  (`docs/`, `registry/`, `apps/landing-page/`, `.claude/`, root `*.md`) - a
-  required CI check enforces the attestation (ADR 0022).
+- Per-subsystem ritual: `design-brief` -> implement -> `design-review` agent on the
+  diff -> `commit`. Fresh corpus shards additionally get `corpus-qa`.
+  **Run `design-review` when a subsystem is finished, not only before opening the
+  PR** - batching features into one PR otherwise batches the review too, and a
+  600-line diff hides what a 200-line one surfaces. It is MANDATORY before merge
+  on everything except pure content (`docs/`, `registry/`, `apps/landing-page/`,
+  `.claude/`, root `*.md`) - a required CI check enforces the attestation (ADR 0022).
 - Authored-literary documents map to a works-registry entry (ADR 0004); unmatched
   records go to triage, never silently dropped. Non-authored sources (Wikipedia) carry
   dataset-manifest provenance with per-reason skip counts instead (ADR 0004 amendment).
