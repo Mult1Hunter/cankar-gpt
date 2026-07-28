@@ -118,6 +118,22 @@ def token_stats_report() -> Path:
     return repo_root() / "registry" / "reports" / "token-stats.md"
 
 
+def passages_shard() -> Path:
+    """Phase 5 de-styling passages - own dir so corpus/chunks globs never see them."""
+    return repo_root() / "data" / "pairs" / "passages.jsonl"
+
+
+def passages_manifest() -> Path:
+    """Committed provenance for the passage set: corpus + holdout + register shas
+    (ADR 0003). The register stamp is what makes design invariant #1 auditable."""
+    return dataset_manifest("pairs", "passages")
+
+
+def passages_report() -> Path:
+    """Snapshot report (computed from gitignored data/) - see reports README."""
+    return repo_root() / "registry" / "reports" / "passages.md"
+
+
 def holdout_manifest() -> Path:
     """Frozen held-out eval set (ADR 0013): generated once, committed,
     provenance-stamped like registry/datasets/, load-bearing - never
