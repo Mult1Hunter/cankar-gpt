@@ -7,7 +7,7 @@ pretty_name: CankarParallel
 size_categories:
 - 10K<n<100K
 task_categories:
-- text2text-generation
+- text-generation
 tags:
 - slovene
 - style-transfer
