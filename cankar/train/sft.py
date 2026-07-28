@@ -337,9 +337,23 @@ class SftConfig(BaseModel):
     # the loss: the optimizer can no longer buy pair loss with voice, because
     # voice is now part of what it is scoring.
     #
-    # 5-20% is the published band. Default 0.0 keeps the frozen no-rehearsal
-    # sweep reproducible; the calibrated value is set from the comparison grid.
-    rehearsal_frac: float = 0.0
+    # Calibrated on a 16-cell grid (lr_scale x rehearsal_frac, 2 epochs) plus a
+    # saturation extension, against sweep 1's frozen no-rehearsal numbers -
+    # docs/style-transfer-rehearsal.md. Every replay cell beat its counterpart,
+    # and the benefit grew with the learning rate because there was more
+    # forgetting to prevent: at lr 0.3, replay recovered 84% of the BPB damage
+    # (+0.454 -> +0.071) while held-out pair loss moved 1.175 -> 1.192.
+    #
+    # 0.5 rather than the best-measured 0.65: the benefit had still not
+    # saturated at the top of the range, so the ceiling here is the corpus, not
+    # the method - 0.65 consumes 74% of the 5,395 windows Cankar's 2.77M tokens
+    # can supply, and any change to seq_len or the pair set would trip the
+    # pool-size guard. 0.5 takes nearly all the benefit with headroom.
+    #
+    # Note this is ABOVE the 5-20% band the literature quotes, because replay
+    # here is ADDED to the pair set rather than displacing part of it - every
+    # pair is still seen the same number of times at any fraction.
+    rehearsal_frac: float = 0.5
 
     lr_scale: float = 0.1
     warmup_frac: float = 0.03

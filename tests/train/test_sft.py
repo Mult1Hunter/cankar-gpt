@@ -210,6 +210,7 @@ def test_the_loop_trains_and_lowers_held_out_loss(tmp_path: Path, enc, sp, monke
         batch_size=4,
         epochs=4.0,
         lr_scale=1.0,
+        rehearsal_frac=0.0,  # isolates the pair mechanics; replay has its own test
         log_every=1000,
         eval_every=1000,
         checkpoint_every=1000,
@@ -241,6 +242,7 @@ def test_the_styler_checkpoint_is_self_describing(tmp_path: Path, enc, sp, monke
         seq_len=64,
         batch_size=4,
         epochs=1.0,
+        rehearsal_frac=0.0,
         log_every=1000,
         eval_every=1000,
         checkpoint_every=1000,
@@ -414,6 +416,38 @@ def test_rehearsal_frac_without_replay_texts_fails_loud(tmp_path: Path, enc, sp)
 
     with pytest.raises(CankarError, match="no replay texts"):
         sft_loop.train_styler(cfg, p, p, ck, "cpu", rehearsal_texts=None)
+
+
+def test_the_default_config_trains_end_to_end_with_replay(tmp_path: Path, enc, sp, monkeypatch):
+    """The shipped default is rehearsal_frac 0.5, so the replay path - not the
+    pair-only one - is what a plain `cankar train sft` exercises. The other loop
+    test pins rehearsal_frac to 0.0 to isolate the pair mechanics, which would
+    otherwise leave the default path untested."""
+    from cankar.train import sft_loop
+
+    monkeypatch.setattr("cankar.train.sft_loop.load_encoding", lambda name: enc)
+    ck = tmp_path / "checkpoints"
+    ck.mkdir()
+    _tiny_checkpoint(ck / "base.pt", enc)
+    rows = [{"plain": f"{PLAIN} {i}", "cankar": f"{CANKAR} {i}"} for i in range(24)]
+    p = _pairs_file(tmp_path, rows)
+
+    cfg = SftConfig(
+        name="styler-default",
+        init_from="base",
+        seq_len=64,
+        batch_size=4,
+        epochs=2.0,
+        log_every=1000,
+        eval_every=1000,
+        checkpoint_every=1000,
+    )
+    assert cfg.rehearsal_frac > 0, "this test is only meaningful while the default mixes replay"
+
+    out = sft_loop.train_styler(cfg, p, p, ck, "cpu", rehearsal_texts=REPLAY_TEXTS)
+    assert out.exists()
+    state = torch.load(out, map_location="cpu", weights_only=False)
+    assert state["config"]["rehearsal_frac"] == cfg.rehearsal_frac, "the mix must be recorded"
 
 
 def test_an_unknown_config_key_is_rejected() -> None:
