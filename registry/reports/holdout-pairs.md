@@ -5,10 +5,10 @@
 Corpus sha256 `d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b`.
 Passages sha256 `3f2f70d1a6f3070042cbc5604afefbb21be4dd03d82e729924f627347a5b43be` (data/pairs/passages.jsonl).
 Register sha256 `cec36eb07e77c6d99076ad98ce176c0c097827f6ecdc70ee274b4547be6d985d` (cankar/core/register.py).
-Pairs sha256 `4f73ebaf1168a85f2627db9616b20a1b3b65341ad6677b43926da2a3b3f3bb87` (data/pairs/pairs.jsonl).
-Model `claude-sonnet-5`, de-styler v1, at 2026-07-28T13:46:48+00:00 (git `ec82ab6-dirty`).
+Pairs sha256 `acd3e977d9c368e90837e7e4e15d4507e00b51e86e890f0b2d8f0b3b2956a1e0` (data/pairs/pairs.jsonl).
+Model `claude-sonnet-5`, de-styler v1, at 2026-07-28T15:14:48+00:00 (git `0d2c53d-dirty`).
 
-**289 pairs** from 294 responses (181,578 in / 43,778 out tokens).
+**285 pairs** from 294 responses (178,929 in / 43,050 out tokens).
 
 The Cankar side is untouched public-domain text; the plain side is
 generated. Pairs train `plain -> cankar`.
@@ -22,6 +22,7 @@ raw log is what a resumed run subtracts against.
 |---|---:|
 | `foreign_script` | 4 |
 | `identity` | 1 |
+| `misassimilated` | 4 |
 
 ## Samples
 
