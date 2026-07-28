@@ -150,11 +150,49 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       spelling. Frozen manifest registry/evals/style.json (versions, seed,
       config, artifact sha - a scorer is not regenerable data). Deploy negative
       (modern de-styled Slovene) is unseen -> `deploy_validated: PENDING Phase 6`
-      (MF-3); the "Cankar vs plain Slovene" use is validated when Phase-5 pairs
-      exist. SloBERTa still deferred - now with a measured AUC to beat.
-- [ ] LLM-judge template for meaning preservation *(deferred to Phase 6 - needs Phase-5 pairs; building now is speculative)*
+      (MF-3). SloBERTa still deferred - now with a measured AUC to beat.
+- [x] **MF-3 RESOLVED, negatively (Phase 6):** `cankar evals deploy-check` measures
+      the classifier on the task it is DEPLOYED on rather than the one it was
+      trained on. Train-task AUC 0.993; **deploy AUC 0.650** (unpaired - every
+      Cankar passage against every de-styled one, 285 held-out pairs, which is how
+      deployment compares scores: across DIFFERENT passages). Paired AUC is 0.870,
+      so it CAN see styling when content is held constant; what it cannot do is
+      produce comparable scores between passages, and comparability is what a
+      claim needs. Decomposed via design invariant #1, which holds
+      register constant between de-styled Cankar and the modern drafts: the topic
+      effect (+0.536) is **4.2x** the style effect (+0.128). The classifier is
+      substantially a period/topic detector. The training confound audit could not
+      have caught this - every peer in its negative is also 1900s prose, so period
+      was held constant by construction and period features carried signal without
+      ever reading as topic. **No headline style claim may ride on it**;
+      directional signal only. registry/reports/style-deploy.md. The verdict is
+      frozen in registry/evals/style-deploy.json BOUND TO THE CLASSIFIER SHA and
+      read back by style-train, so a retrain that changes the weights resets the
+      status to PENDING rather than inheriting a measurement of different weights
+      (the retrain reproduced the artifact byte-identically, so the manifest now
+      carries the verdict).
+- [x] **LLM meaning-judge built (eval pillar #3, `cankar evals judge`).** Scores
+      meaning / voice / fluency on 1-5, absolute per item rather than pairwise
+      (pairwise buys a documented position bias up to 75%). Every batch carries
+      BLIND CONTROLS with a known answer, because an unvalidated instrument is
+      what produced the style classifier: ECHO (source verbatim -> must be
+      meaning 5, voice 1), MISMATCH (real Cankar, wrong content -> meaning 1,
+      voice high), REAL_CANKAR (ceiling). Measured: ECHO 5.00/1.00, MISMATCH
+      1.00/3.95, margins +2.65 voice / +3.60 meaning, axes independent -> USABLE.
+      Ceilings are measured not assumed: real Cankar scores 3.65 on VOICE, so 5
+      is not a reachable target and scores are reported against the ceiling.
+      Cost $1.12 actual. registry/reports/judge.md
+- [x] **Phase 6 headline, measured (eval before claims):** styler-v1 on FRESH
+      DRAFTS scores meaning **1.09**, voice **1.89**, fluency **1.03** on a 1-5
+      scale whose floor is 1, against a real-Cankar ceiling of 4.60/3.65/4.15.
+      Held-out pairs: 2.25/2.34/1.77. **Fluency at the floor means the output is
+      not well-formed Slovene**, which no amount of style tuning fixes - 26.3M
+      parameters do not do Slovene style transfer on unseen topics. This is the
+      go/no-go input for GaMS. The style classifier had scored the same draft
+      outputs as a 0.090 -> 0.361 improvement; it was rewarding archaic
+      vocabulary sprinkled on broken Slovene.
 - [ ] Dev set design: 200 held-out pairs **+ 50 fresh drafts**. Held-out half DONE:
-      `cankar pairs segment/destyle --set holdout` -> **289 pairs** from the 12
+      `cankar pairs segment/destyle --set holdout` -> **285 pairs** from the 12
       held-out prose works, zero passage- AND work-level overlap with the 9,950
       training pairs (`PairSet` inverts one shared predicate, so a doc cannot be
       eligible for both). Fresh drafts remain - they are the other half of the

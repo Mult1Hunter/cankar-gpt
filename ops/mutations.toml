@@ -263,3 +263,74 @@ file = "configs/train/styler-v1.toml"
 old = "rehearsal_frac = 0.5"
 new = "rehearsal_frac = 0.15"
 tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# The deploy verdict must be able to come out either way. Hardcoding VALIDATED
+# turns a measurement into a constant that always clears the gate it exists to
+# be blocked by.
+file = "cankar/evals/style.py"
+old = """            if auc >= DEPLOY_AUC_FLOOR and (mc - md) > (md - mm)
+            else DeployStatus.MEASURED_INADEQUATE"""
+new = """            if True
+            else DeployStatus.MEASURED_INADEQUATE"""
+tests = "tests/evals/test_style.py"
+
+[[mutation]]
+# A style scorer whose topic effect exceeds its style effect is measuring the
+# wrong thing, whatever its AUC. Dropping that condition would have passed the
+# real classifier on period vocabulary alone.
+file = "cankar/evals/style.py"
+old = "            if auc >= DEPLOY_AUC_FLOOR and (mc - md) > (md - mm)"
+new = "            if auc >= DEPLOY_AUC_FLOOR"
+tests = "tests/evals/test_style.py"
+
+[[mutation]]
+# A deploy verdict belongs to the artifact it was measured on. Ignoring the sha
+# would carry a stale verdict onto retrained weights - a stale VALIDATED being
+# the dangerous direction.
+file = "cankar/evals/style.py"
+old = "    if record.artifact_sha256 != artifact_sha:"
+new = "    if False:"
+tests = "tests/evals/test_style.py"
+
+[[mutation]]
+# check_controls is why the judge can be believed at all. A judge that scores
+# everything highly must be rejected; passing everything makes the whole
+# instrument decorative.
+file = "cankar/evals/judge.py"
+old = "    if voice_margin < MIN_CONTROL_MARGIN:"
+new = "    if False:"
+tests = "tests/evals/test_judge.py"
+
+[[mutation]]
+# MISMATCH is real Cankar with the wrong content. If its meaning does not
+# collapse, the judge is reading period vocabulary as substance - the style
+# classifier's exact failure, one layer up.
+file = "cankar/evals/judge.py"
+old = "    if meaning_margin < MIN_CONTROL_MARGIN:"
+new = "    if False:"
+tests = "tests/evals/test_judge.py"
+
+[[mutation]]
+# The halo check must be SAME-AXIS. Comparing MISMATCH voice against its own
+# meaning subtracts one axis from another, and the two have different ceilings.
+file = "cankar/evals/judge.py"
+old = "    independent = abs(mv - rv) < MIN_CONTROL_MARGIN"
+new = "    independent = abs(mv - mm) < MIN_CONTROL_MARGIN"
+tests = "tests/evals/test_judge.py"
+
+[[mutation]]
+# Scores must come from THIS batch's items. Prefix-matching the append-only raw
+# ledger mixes an earlier, larger run's verdicts into a later headline.
+file = "cankar/evals/judge.py"
+old = "        if i.control is ControlKind.NONE and i.item_id in verdicts"
+new = "        if i.item_id in verdicts"
+tests = "tests/evals/test_judge.py"
+
+[[mutation]]
+# The paired AUC assumes index i of both series is the same passage. Without the
+# contract the report claims "its OWN de-styled pair" over unpaired series.
+file = "cankar/evals/style.py"
+old = "    if len(cankar) != len(destyled):"
+new = "    if False:"
+tests = "tests/evals/test_style.py"

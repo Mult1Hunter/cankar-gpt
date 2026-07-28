@@ -26,6 +26,7 @@ confound, ROADMAP critique A-1). Built to the architect critique:
 
 from __future__ import annotations
 
+import itertools
 import logging
 import re
 from dataclasses import dataclass, field
@@ -112,6 +113,21 @@ class Analyzer(StrEnum):
     CHAR_WB_ORTHONORM = "char_wb_orthonorm"  # char_wb after the sonce spot-check
 
 
+DEPLOY_AUC_FLOOR = 0.85
+"""Minimum deploy-task ROC-AUC for the classifier to carry a quality claim.
+
+Conventional "good discrimination" for a diagnostic test is 0.8-0.9; 0.85 sits
+in that band and far below the 0.993 the training task reaches, so it is a
+lenient bar rather than a demanding one.
+
+The measured deploy AUC is 0.650 (Phase 6, all 285 held-out pairs), so the
+verdict does not hinge on where in that band the line falls - anything from 0.70
+to 0.98 returns the same answer, as does the second condition (style effect must
+exceed topic effect: measured +0.128 vs +0.536). A threshold whose exact value
+would change the conclusion would need a real calibration; this one does not.
+"""
+
+
 class DeployStatus(StrEnum):
     """Whether the classifier is validated against its DEPLOY negative (modern
     de-styled Slovene). Train negative is 19th-c peer prose; the deploy negative
@@ -119,6 +135,12 @@ class DeployStatus(StrEnum):
 
     PENDING_PHASE6 = "PENDING Phase 6"
     VALIDATED = "validated"
+    # Measured in Phase 6 and found unfit for the deploy task. A third state,
+    # not a variant of PENDING: pending means unknown and blocks claims by
+    # default; this means known-bad, which blocks them permanently and points at
+    # a different instrument. Collapsing the two would let a later "just run the
+    # check" read as though the answer might still come out fine.
+    MEASURED_INADEQUATE = "measured - inadequate for deploy"
 
 
 class StyleParams(BaseModel):
@@ -511,8 +533,9 @@ def write_style_report(out: Path, manifest: StyleManifest, ev: Evaluation) -> Pa
         f"pos-rate {m.pos_rate:.3f}), {m.n_groups} groups, {m.n_docs} docs, "
         f"{m.n_verse_docs_dropped} verse docs dropped",
         f"- per-fold positive rate: {m.metrics.per_fold_pos_rate}",
-        f"- deploy status: **{m.deploy_validated.value}** (train negative is 19th-c",
-        "  peer prose; the Phase-6 negative is modern de-styled Slovene - unseen here)",
+        f"- deploy status: **{m.deploy_validated.value}** - train negative is 19th-c",
+        "  peer prose; the deploy negative is modern plain Slovene, which this",
+        "  training run never saw. Measured separately: `style-deploy.md`.",
         "",
         "## Ablation - which feature family carries the signal (MF-5b)",
         "",
@@ -556,3 +579,218 @@ def write_style_report(out: Path, manifest: StyleManifest, ev: Evaluation) -> Pa
     ]
     write_report(out, lines)
     return out
+
+
+# ----------------------------------------------------------------------------
+# MF-3: is the scorer fit for the task it is DEPLOYED on? (Phase 6)
+# ----------------------------------------------------------------------------
+
+
+class DeployRecord(BaseModel):
+    """A deploy verdict, bound to the exact classifier it was measured on.
+
+    `artifact_sha256` is the whole point. The verdict is a property of a
+    particular trained scorer, not of the project - carrying it forward onto a
+    retrained artifact without checking would let a stale "inadequate" (or a
+    stale "validated") attach itself to weights nobody measured.
+    """
+
+    schema_version: int = 1
+    artifact_sha256: str
+    corpus_sha256: str
+    git_sha: str
+    created_at: str
+    check: DeployCheck
+
+
+def load_deploy_record(path: Path) -> DeployRecord:
+    return load_frozen(path, DeployRecord, "cankar evals deploy-check")
+
+
+def deploy_status_for(record_path: Path, artifact_sha: str) -> DeployStatus:
+    """The recorded verdict IF it was measured on this exact artifact.
+
+    Anything else is PENDING, including a missing record and a sha mismatch. A
+    retrain that changes the weights invalidates the measurement, and defaulting
+    to "unknown" is the only safe direction: it blocks claims until someone
+    re-measures, rather than publishing a verdict about different weights.
+    """
+    if not record_path.exists():
+        return DeployStatus.PENDING_PHASE6
+    record = load_deploy_record(record_path)
+    if record.artifact_sha256 != artifact_sha:
+        log.warning(
+            "deploy record is for artifact %s but this one is %s - status resets to %s",
+            record.artifact_sha256[:12],
+            artifact_sha[:12],
+            DeployStatus.PENDING_PHASE6.value,
+        )
+        return DeployStatus.PENDING_PHASE6
+    return record.check.verdict
+
+
+class DeployCheck(BaseModel):
+    """The classifier measured on its deploy task, not its training task.
+
+    Trained to separate Cankar from 14 public-domain peers - all 1900s literary
+    prose. Deployment asks something else: is THIS passage Cankar's voice, where
+    the negative is plain modern Slovene. A train-task ROC-AUC says nothing about
+    that, and the confound audit that cleared the training signal as VOICE held
+    period constant by construction (every peer is also 1900s prose), so it could
+    not have detected period features either.
+    """
+
+    n_cankar: int
+    n_destyled: int
+    n_modern: int
+    mean_cankar: float
+    mean_destyled: float
+    mean_modern: float
+    style_effect: float  # real vs de-styled Cankar - topic held constant
+    topic_effect: float  # de-styled Cankar vs modern plain - register held constant
+    # TWO AUCs, because they answer different questions and only one matches how
+    # the scorer is used. Reporting a single "deploy AUC" was wrong: the code
+    # computed the unpaired one while the docstring, the report and the ROADMAP
+    # all described the paired one, and they differ by 0.22.
+    deploy_auc: float  # unpaired, all cross comparisons - the deployment-shaped one
+    paired_auc: float  # each Cankar passage against its OWN de-styled pair
+    verdict: DeployStatus
+
+
+def deploy_check(
+    model: Pipeline, cankar: list[str], destyled: list[str], modern: list[str]
+) -> DeployCheck:
+    """Decompose the score into a style effect and a topic effect.
+
+    The decomposition is only available because of design invariant #1: the SAME
+    plain-register prompt produced both the de-styled Cankar passages and the
+    fresh modern drafts, so register is held constant between them and what is
+    left is topic and period. Without that shared prompt the two would differ in
+    two ways at once and neither effect could be attributed.
+
+    Both AUCs are reported because they answer different questions:
+
+    - `paired_auc` ranks each Cankar passage against its OWN de-styled version.
+      Content is held constant, so this asks "can it see styling at all?"
+    - `deploy_auc` is unpaired, every Cankar passage against every de-styled one.
+      Passage difficulty does NOT cancel, which is the point: deployment compares
+      scores across DIFFERENT passages (styler output on one topic against plain
+      text on another), so this is the shape the scorer is actually used in.
+
+    Fitness is decided on `deploy_auc` and the effect decomposition. A high
+    paired and low unpaired AUC - which is what this classifier shows - means it
+    can detect styling on matched content but cannot produce scores comparable
+    between passages, and comparability is what a quality claim needs.
+    """
+
+    if not (cankar and destyled and modern):
+        raise CankarError("deploy check needs all three series - a missing one is not a zero")
+    if len(cankar) != len(destyled):
+        raise CankarError(
+            f"paired AUC needs aligned series, got {len(cankar)} Cankar and "
+            f"{len(destyled)} de-styled - index i of each must be the same passage"
+        )
+
+    def p(texts: list[str]) -> list[float]:
+        return [float(x) for x in model.predict_proba(texts)[:, 1]]
+
+    pc, pd, pm = p(cankar), p(destyled), p(modern)
+    mc, md, mm = (sum(v) / len(v) for v in (pc, pd, pm))
+
+    wins = sum(a > b for a, b in itertools.product(pc, pd))
+    ties = sum(a == b for a, b in itertools.product(pc, pd))
+    auc = (wins + 0.5 * ties) / (len(pc) * len(pd))
+
+    pw = sum(a > b for a, b in zip(pc, pd, strict=True))
+    pt = sum(a == b for a, b in zip(pc, pd, strict=True))
+    paired = (pw + 0.5 * pt) / len(pc)
+
+    return DeployCheck(
+        n_cankar=len(pc),
+        n_destyled=len(pd),
+        n_modern=len(pm),
+        mean_cankar=mc,
+        mean_destyled=md,
+        mean_modern=mm,
+        style_effect=mc - md,
+        topic_effect=md - mm,
+        deploy_auc=auc,
+        paired_auc=paired,
+        verdict=(
+            DeployStatus.VALIDATED
+            if auc >= DEPLOY_AUC_FLOOR and (mc - md) > (md - mm)
+            else DeployStatus.MEASURED_INADEQUATE
+        ),
+    )
+
+
+def write_deploy_report(out: Path, check: DeployCheck, train_auc: float, corpus_sha: str) -> None:
+    """The MF-3 answer, kept next to the audit that could not have reached it."""
+    c = check
+    ratio = c.topic_effect / c.style_effect if c.style_effect else float("inf")
+    L = [
+        generated_marker("cankar evals deploy-check", snapshot=True),
+        "",
+        "# Style classifier - deploy fitness (MF-3)",
+        "",
+        # Stamped so the freshness gate can catch this going stale: the verdict
+        # is only valid for the pair set and classifier this corpus produced.
+        f"Corpus sha256 `{corpus_sha}`.",
+        "",
+        f"**Verdict: {c.verdict.value}.**",
+        "",
+        f"Train-task ROC-AUC is {train_auc:.3f} - Cankar against 14 public-domain",
+        "peers, all 1900s literary prose. That is not the task it is deployed on.",
+        "Deployment asks whether a passage is Cankar's VOICE, with plain modern",
+        "Slovene as the negative.",
+        "",
+        f"**Deploy ROC-AUC = {c.deploy_auc:.3f}** (unpaired, {c.n_cankar} held-out pairs):",
+        "every real Cankar passage against every de-styled one. Passage difficulty",
+        "does NOT cancel, and that is the point - deployment compares scores across",
+        "DIFFERENT passages, so this is the shape the scorer is actually used in.",
+        "",
+        f"**Paired ROC-AUC = {c.paired_auc:.3f}**: each Cankar passage against its OWN",
+        "de-styled version, content held constant. The scorer CAN see styling when",
+        "the content is fixed; what it cannot do is produce scores comparable between",
+        "passages, and comparability is what a quality claim needs.",
+        "",
+        "## Where the score actually comes from",
+        "",
+        "Design invariant #1 makes this decomposable: the same plain-register",
+        "prompt produced both the de-styled Cankar passages and the fresh modern",
+        "drafts, so register is held constant between them and what remains is",
+        "topic and period.",
+        "",
+        "| series | n | mean P(Cankar) |",
+        "|---|--:|--:|",
+        f"| real Cankar | {c.n_cankar} | {c.mean_cankar:.3f} |",
+        f"| de-styled Cankar (Cankar topic, plain register) | {c.n_destyled} | "
+        f"{c.mean_destyled:.3f} |",
+        f"| modern drafts (modern topic, plain register) | {c.n_modern} | {c.mean_modern:.3f} |",
+        "",
+        f"- style effect (topic held constant): **{c.style_effect:+.3f}**",
+        f"- topic effect (register held constant): **{c.topic_effect:+.3f}**",
+        f"- ratio: **{ratio:.1f}x** in favour of topic",
+        "",
+        "## Why the training audit did not catch this",
+        "",
+        "`style.md` cleared the training signal as VOICE on a feature ablation:",
+        "char n-grams beat word n-grams, and a function-words-only floor held at",
+        "0.874. That audit was sound for the task it examined and could not have",
+        "found this - every peer in the training negative is also 1900s literary",
+        "prose, so PERIOD was held constant by construction and period features",
+        "were free to carry signal without ever showing up as topic.",
+        "",
+        "## What this blocks, and what it does not",
+        "",
+        "The classifier cannot carry a headline style-transfer claim on modern",
+        "topics: a large part of any score it gives is the passage's period",
+        "vocabulary, not its voice. It remains usable as a DIRECTIONAL signal -",
+        "the sign of a change is informative, the magnitude is not.",
+        "",
+        "This is a known failure class in the style-transfer literature, where",
+        "classifier-based style strength is standardly paired with a content",
+        "preservation metric and a fluency metric rather than used alone. The",
+        "ROADMAP's LLM meaning-judge is the intended replacement instrument.",
+    ]
+    write_report(out, L)

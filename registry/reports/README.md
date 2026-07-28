@@ -6,11 +6,12 @@ Two report classes live here (marker line names the class):
   byte-identically by `cankar corpus report --all`; CI diff-checks them.
 - **snapshot** (corpus-quality.md, near-duplicates.md, dlib-reconcile.md,
   merge.md, tokenizer-eval.md, chunks.md, token-stats.md, eval-holdout.md,
-  style.md, bpb.md, {train,holdout}-passages.md, {train,holdout}-pairs.md): computed from gitignored data/ +
+  style.md, style-deploy.md, judge.md, bpb.md, {train,holdout}-passages.md,
+  {train,holdout}-pairs.md): computed from gitignored data/ +
   checkpoints/ or live dLib state by `cankar corpus stats` / `dedup` /
   `reconcile-dlib` / `merge` / `cankar tokenizer eval` / `chunk` / `stats` /
-  `cankar evals holdout-freeze` / `style-train` / `bpb-freeze` / `cankar pairs
-  segment` / `destyle`; CI cannot regenerate them - do NOT fold them into
+  `cankar evals holdout-freeze` / `style-train` / `deploy-check` / `judge` /
+  `bpb-freeze` / `cankar pairs segment` / `destyle`; CI cannot regenerate them - do NOT fold them into
   `report --all` or the drift gate goes red.
 
 Every file starts with a GENERATED marker. Hand edits are overwritten (and

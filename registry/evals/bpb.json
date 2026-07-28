@@ -2,8 +2,8 @@
   "schema_version": 1,
   "corpus_sha256": "d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b",
   "holdout_sha256": "07ccca96a4fe339d50a9da9d38f71b4bcec98962e601d6460b633edca96331a2",
-  "git_sha": "9649d0d",
-  "created_at": "2026-07-27T18:28:34+00:00",
+  "git_sha": "918c4bb-dirty",
+  "created_at": "2026-07-28T18:37:04+00:00",
   "device": "cuda",
   "lib_versions": {
     "torch_version": "2.13.0",
@@ -35,6 +35,15 @@
       "n_params": 26345726,
       "tokenizer": "v8192",
       "bpb": 1.4508,
+      "n_works": 50
+    },
+    {
+      "name": "styler-v1",
+      "sha256": "565f505250479de6a4f63dfb5f1548f064bfcbd6fe00c7437d3ce24f147fb45f",
+      "step": 1474,
+      "n_params": 26345726,
+      "tokenizer": "v8192",
+      "bpb": 1.5449,
       "n_works": 50
     }
   ]
