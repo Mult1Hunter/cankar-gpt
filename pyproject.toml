@@ -21,6 +21,7 @@ dependencies = [
     "numpy>=1.26",  # imported directly; version pinned in the style manifest
     "scipy>=1.11",  # version pinned in the style manifest (reproducibility)
     "anthropic>=0.120.0",
+    "huggingface-hub>=1.25.1",
 ]
 
 [project.urls]

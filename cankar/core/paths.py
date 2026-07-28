@@ -157,6 +157,13 @@ def pairs_manifest() -> Path:
     return dataset_manifest("pairs", "pairs")
 
 
+def pairs_samples() -> Path:
+    """Committed before/after excerpts quoted by docs/. Small and in git on
+    purpose: pairs.jsonl is gitignored, so without this a published sample could
+    not be checked against the real data."""
+    return repo_root() / "registry" / "datasets" / "pairs" / "samples.jsonl"
+
+
 def pairs_report() -> Path:
     """Snapshot report (computed from gitignored data/) - see reports README."""
     return repo_root() / "registry" / "reports" / "pairs.md"

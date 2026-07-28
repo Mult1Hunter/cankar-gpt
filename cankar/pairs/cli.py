@@ -20,6 +20,7 @@ from cankar.core.holdout import holdout_excludes, load_holdout
 from cankar.core.manifest import (
     git_sha,
     library_versions,
+    load_frozen,
     sha256_of,
     utc_now_iso,
     write_manifest,
@@ -31,6 +32,7 @@ from cankar.core.paths import (
     merged_shard,
     pairs_manifest,
     pairs_report,
+    pairs_samples,
     pairs_shard,
     passages_manifest,
     passages_report,
@@ -39,7 +41,7 @@ from cankar.core.paths import (
 )
 from cankar.core.register import REGISTER_SHA256
 from cankar.core.works import load_work_genres
-from cankar.pairs import destyle, segment
+from cankar.pairs import destyle, publish, segment
 
 log = logging.getLogger("cankar.pairs")
 
@@ -208,6 +210,7 @@ def _destyle(args: argparse.Namespace) -> int:
         out_tokens=sum(p.out_tokens for p in pairs),
     )
     out_manifest = write_manifest(manifest, pairs_manifest())
+    destyle.write_pairs(pairs_samples(), publish.select_samples(pairs))
     report = destyle.write_pairs_report(pairs_report(), manifest, pairs[:3])
     log.info(
         "%d pairs, %d rejected (%s) -> %s + %s + %s",
@@ -217,6 +220,48 @@ def _destyle(args: argparse.Namespace) -> int:
         out_shard,
         out_manifest,
         report,
+    )
+    return 0
+
+
+def _publish(args: argparse.Namespace) -> int:
+    if not os.environ.get("HF_TOKEN"):
+        raise CankarError("HF_TOKEN not set (see .env.example; needs write on the dataset repo)")
+    from huggingface_hub import HfApi
+
+    pairs_mf = load_frozen(pairs_manifest(), destyle.PairsManifest, "cankar pairs destyle")
+    passages_mf = load_frozen(passages_manifest(), segment.PassagesManifest, "cankar pairs segment")
+
+    card_path = pairs_shard().parent / "DATASET_CARD.md"
+    card_path.write_text(publish.dataset_card(pairs_mf, passages_mf, args.repo), encoding="utf-8")
+    uploads = publish.build_uploads(pairs_shard(), destyle_raw(), pairs_manifest(), card_path)
+    publish.check_uploads(uploads)
+
+    if args.dry_run:
+        for u in uploads:
+            size = u.local.stat().st_size if u.local.exists() else 0
+            log.info(
+                "DRY RUN: %s -> %s:%s (%.1f MB)", u.local.name, args.repo, u.remote, size / 1e6
+            )
+        return 0
+
+    api = HfApi()
+    for u in uploads:
+        if not u.local.exists():
+            log.info("skipping absent %s", u.local.name)
+            continue
+        api.upload_file(
+            path_or_fileobj=str(u.local),
+            path_in_repo=u.remote,
+            repo_id=args.repo,
+            repo_type=publish.REPO_TYPE,
+            commit_message=f"{pairs_mf.n_pairs} pairs from git {pairs_mf.git_sha}",
+        )
+        log.info("uploaded %s -> %s", u.local.name, u.remote)
+    log.info(
+        "published %d pairs to https://huggingface.co/datasets/%s (private)",
+        pairs_mf.n_pairs,
+        args.repo,
     )
     return 0
 
@@ -240,3 +285,8 @@ def register(parser: argparse.ArgumentParser) -> None:
         help="re-send passages whose paid response was rejected (RE-BILLS them)",
     )
     d.set_defaults(func=_destyle)
+
+    p = sub.add_parser("publish", help="upload the pair dataset to the HF Hub")
+    p.add_argument("--repo", default=publish.DEFAULT_REPO, help="HF dataset repo id")
+    p.add_argument("--dry-run", action="store_true", help="list what would be uploaded")
+    p.set_defaults(func=_publish)
