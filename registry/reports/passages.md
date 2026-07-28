@@ -4,30 +4,46 @@
 
 Corpus sha256 `d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b`.
 Held-out set sha256 `07ccca96a4fe339d50a9da9d38f71b4bcec98962e601d6460b633edca96331a2` (registry/evals/holdout.json).
-Register sha256 `cec36eb07e77c6d99076ad98ce176c0c097827f6ecdc70ee274b4547be6d985d` (cankar/core/register.py).
-Segmenter v1, cut at 2026-07-28T09:28:20+00:00 (git `1427e06`).
+Works ledger sha256 `a766acd29e6eb6d38899002ae3425e73b7ae7f136de23ca8558b8187dcd7e039` (registry/works/cankar.jsonl).
+Passages sha256 `e1cad3a2643782f9a1e523c883db7d9ce9f4a0fb82142472d6f4c2f6cb3c7438` (data/pairs/passages.jsonl).
+Segmenter v2, cut at 2026-07-28T09:55:31+00:00 (git `573f26c`).
 
-**17,304 passages** (5,852,619 chars) from 155 `wikivir`
-Cankar docs, held-out works excluded. Passages are paragraph-bounded and
-content-addressed by `passage_id`, so de-styling is resumable without
-re-billing work already done.
+**13,872 passages** (4,732,900 chars) from 82 `wikivir`
+Cankar docs. Passages are paragraph-bounded and content-addressed by
+`passage_id`, so de-styling is resumable without re-billing work already
+done.
 
 | threshold | value |
 |---|---:|
 | sentences per passage | 2-6 |
 | chars per passage | 120-800 |
+| eligible genres | Esejistika, Mladinska dela, Pripovedni spisi, Proza |
+
+## Documents skipped
+
+Held-out works are excluded so Phase 6's evaluation stays clean. Non-prose
+genres are excluded because a paragraph means something else in drama - a
+speaker turn - and segmenting plays as prose glues speaker labels into the
+source text.
+
+| reason | docs |
+|---|---:|
+| `genre_not_prose` | 73 |
+| `held_out` | 50 |
 
 ## Rejections
 
-Every candidate is accounted for - a rejection class cannot grow silently.
+Every one of the 32,009 candidate windows is accounted for - a rejection
+class cannot grow silently.
 
 | reason | count | share of candidates |
 |---|---:|---:|
-| `heading` | 477 | 1.2% |
-| `too_few_sentences` | 18,118 | 43.8% |
-| `too_long` | 604 | 1.5% |
-| `too_short` | 4,880 | 11.8% |
-| **kept** | **17,304** | **41.8%** |
+| `duplicate` | 107 | 0.3% |
+| `heading` | 389 | 1.2% |
+| `too_few_sentences` | 13,689 | 42.8% |
+| `too_long` | 496 | 1.5% |
+| `too_short` | 3,456 | 10.8% |
+| **kept** | **13,872** | **43.3%** |
 
 ## Reproducing
 
