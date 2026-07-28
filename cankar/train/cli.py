@@ -1,6 +1,7 @@
 """Train-stage CLI (ADR 0007): the only argparse holder for this stage.
 
 cankar train run   [--config configs/train/tinycankar.toml] [--resume]
+cankar train sft   [--config configs/train/styler-v1.toml]   # Phase 6
 cankar train sample --checkpoint checkpoints/tinycankar.pt [--prompt ...]
 """
 
@@ -12,10 +13,12 @@ from pathlib import Path
 
 import torch
 
-from cankar.core.paths import checkpoints_dir, train_config
+from cankar.core.paths import PairSet, checkpoints_dir, pairs_shard, train_config
 from cankar.train.config import load_train_config
 from cankar.train.loop import train
 from cankar.train.sample import sample_from_checkpoint
+from cankar.train.sft import SftConfig
+from cankar.train.sft_loop import train_styler
 
 log = logging.getLogger("cankar.train")
 
@@ -33,6 +36,25 @@ def _run(args: argparse.Namespace) -> int:
     device = _device(args.device)
     log.info("training on %s", device)
     train(config, checkpoints_dir(), device, resume=args.resume, init_from=args.init_from)
+    return 0
+
+
+def _sft(args: argparse.Namespace) -> int:
+    """Phase 6: fine-tune the Cankar voice onto a plain-Slovene prompt."""
+    import tomllib
+
+    raw = tomllib.loads(args.config.read_text(encoding="utf-8")) if args.config else {}
+    config = SftConfig.model_validate(raw)
+    device = _device(args.device)
+    log.info("style-transfer SFT on %s", device)
+    out = train_styler(
+        config,
+        pairs_shard(PairSet.TRAIN),
+        pairs_shard(PairSet.HOLDOUT),
+        checkpoints_dir(),
+        device,
+    )
+    log.info("styler -> %s", out)
     return 0
 
 
@@ -71,6 +93,13 @@ def register(parser: argparse.ArgumentParser) -> None:
     )
     r.add_argument("--device", default=None, help="cuda/cpu (default: auto)")
     r.set_defaults(func=_run)
+
+    f = sub.add_parser("sft", help="Phase 6: style-transfer fine-tune on the pairs")
+    f.add_argument(
+        "--config", type=Path, default=None, help="TOML preset (defaults apply if omitted)"
+    )
+    f.add_argument("--device", default=None, help="cuda/cpu (default: auto)")
+    f.set_defaults(func=_sft)
 
     s = sub.add_parser("sample", help="generate text from a trained checkpoint")
     s.add_argument("--checkpoint", type=Path, default=checkpoints_dir() / "tinycankar.pt")

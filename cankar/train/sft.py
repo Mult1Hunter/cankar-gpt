@@ -27,12 +27,14 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
 import tiktoken
 import torch
+from pydantic import BaseModel
 
 from cankar.core.encoding import bos_id
 from cankar.core.errors import CankarError
@@ -166,3 +168,51 @@ def iter_batches(
     groups = [by_len[i : i + batch_size] for i in range(0, len(by_len), batch_size)]
     for gi in torch.randperm(len(groups), generator=g).tolist():
         yield collate([data.examples[i] for i in groups[gi]], pad_id)
+
+
+class SftConfig(BaseModel):
+    """One SFT run, fully determined.
+
+    Deliberately carries NO model-shape fields. SFT always fine-tunes an
+    existing checkpoint, so the shape comes from that checkpoint's own
+    `gptconfig` (the ADR 0017 self-describing contract, as `evals/bpb.py`
+    reads it). Duplicating n_layer/n_embd here would let a config disagree
+    with the weights it loads - a mismatch worth making impossible rather
+    than merely detected.
+    """
+
+    name: str = "styler-v1"
+    init_from: str = "cankar-v1"  # checkpoints/<name>.pt - the voice to build on
+    tokenizer: str = "v8192"
+    seed: int = 20260728
+
+    seq_len: int = 512  # p99 of the pair set is 469 tokens; 512 covers 99.9%
+    batch_size: int = 16
+    epochs: float = 3.0
+
+    # Fine-tuning, not pretraining: a tenth of the base run's 2e-3, because the
+    # checkpoint already holds the Cankar voice and the job is to attach it to a
+    # prompt, not to relearn it. Too high here is catastrophic forgetting.
+    matrix_lr: float = 2e-4
+    warmup_frac: float = 0.03
+    min_lr_frac: float = 0.1
+    weight_decay: float = 0.0
+    grad_clip: float = 1.0
+
+    log_every: int = 25
+    eval_every: int = 100  # held-out pair loss, the only honest progress signal
+    checkpoint_every: int = 250
+
+
+def steps_per_epoch(data: SftData, batch_size: int) -> int:
+    return max(1, (len(data.examples) + batch_size - 1) // batch_size)
+
+
+def lr_multiplier(step: int, total: int, config: SftConfig) -> float:
+    """Linear warmup then cosine decay to `min_lr_frac`, matching train/loop."""
+    warmup = max(1, int(total * config.warmup_frac))
+    if step < warmup:
+        return (step + 1) / warmup
+    progress = (step - warmup) / max(1, total - warmup)
+    cosine = 0.5 * (1.0 + math.cos(math.pi * min(1.0, progress)))
+    return config.min_lr_frac + (1.0 - config.min_lr_frac) * cosine

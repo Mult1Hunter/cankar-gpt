@@ -1,0 +1,24 @@
+# Phase 6 style-transfer SFT: plain Slovene -> Cankar's voice.
+#
+# No model-shape fields on purpose. SFT always fine-tunes an existing
+# checkpoint, so the shape is read from that checkpoint's own gptconfig
+# (ADR 0017) - a config cannot disagree with the weights it loads.
+name = "styler-v1"
+init_from = "cankar-v1"
+tokenizer = "v8192"
+seed = 20260728
+
+seq_len = 512      # p99 of the pair set is 469 tokens; 512 covers 99.9%
+batch_size = 16
+epochs = 3.0
+
+# A tenth of the base run's 2e-3. The checkpoint already holds the Cankar
+# voice; the job is to attach it to a prompt, not relearn it. Too high here
+# is catastrophic forgetting of what Phase 4 bought.
+matrix_lr = 2e-4
+warmup_frac = 0.03
+min_lr_frac = 0.1
+
+log_every = 25
+eval_every = 100
+checkpoint_every = 250

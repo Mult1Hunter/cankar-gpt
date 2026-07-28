@@ -176,3 +176,21 @@ file = "cankar/pairs/destyle.py"
 old = "    return difflib.SequenceMatcher(None, source, output, autojunk=False).ratio()"
 new = "    return difflib.SequenceMatcher(None, source, output).ratio()"
 tests = "tests/pairs/test_destyle.py"
+
+[[mutation]]
+# Training CE falls whether or not the model learns the mapping - the target
+# side is Cankar's own prose, so a checkpoint that already speaks Cankar scores
+# well by ignoring the prompt. Held-out pair loss is the only signal that tells
+# those apart, and the loop asserts it drops.
+file = "cankar/train/sft_loop.py"
+old = "        total += model(x, targets=y).item() * scored"
+new = "        total += model(x, targets=y).item()"
+tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# SFT must rebuild from the checkpoint's OWN gptconfig. Silently defaulting a
+# shape would load weights into the wrong model.
+file = "cankar/train/sft_loop.py"
+old = '    if "gptconfig" not in state:'
+new = "    if False:"
+tests = "tests/train/test_sft.py"

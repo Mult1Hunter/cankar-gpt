@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 import pytest
+import torch
 
 from cankar.core.errors import CankarError
 from cankar.tokenizer import train as tok_train
@@ -20,10 +21,12 @@ from cankar.train.sft import (
     IGNORE_INDEX,
     USER_END,
     USER_START,
+    SftConfig,
     build_example,
     collate,
     iter_batches,
     load_pairs,
+    lr_multiplier,
     special_ids,
 )
 
@@ -160,3 +163,148 @@ def test_a_tokenizer_without_chat_specials_fails_loud(enc, sp) -> None:
 
     with pytest.raises(CankarError, match="chat specials"):
         special_ids(Bare())  # type: ignore[arg-type]
+
+
+# --- the loop: a real end-to-end run on a tiny model --------------------------
+
+
+def _tiny_checkpoint(path: Path, enc, device: str = "cpu"):
+    """A real 2-layer GPT saved in the self-describing format (ADR 0017)."""
+    from cankar.model.build import build_gpt
+    from cankar.model.gpt import GPTConfig
+
+    cfg = GPTConfig(
+        sequence_len=64, vocab_size=enc.n_vocab, n_layer=2, n_head=2, n_kv_head=2, n_embd=64
+    )
+    model = build_gpt(cfg, device)
+    torch.save(
+        {"model": model.state_dict(), "gptconfig": cfg.__dict__, "config": {}, "step": 7}, path
+    )
+    return cfg
+
+
+def test_the_loop_trains_and_lowers_held_out_loss(tmp_path: Path, enc, sp, monkeypatch) -> None:
+    """A real run: loads a checkpoint, fine-tunes on pairs, writes a styler.
+
+    Asserts held-out loss DROPS. That is the only signal that distinguishes
+    learning the mapping from reciting the voice - training CE falls either way,
+    because the target side is Cankar's own prose."""
+    from cankar.train import sft_loop
+
+    monkeypatch.setattr("cankar.train.sft_loop.load_encoding", lambda name: enc)
+    ck = tmp_path / "checkpoints"
+    ck.mkdir()
+    _tiny_checkpoint(ck / "base.pt", enc)
+
+    rows = [{"plain": f"{PLAIN} {i}", "cankar": f"{CANKAR} {i}"} for i in range(24)]
+    train_p = _pairs_file(tmp_path, rows)
+    hold_p = tmp_path / "hold.jsonl"
+    hold_p.write_text(
+        "\n".join(json.dumps(r, ensure_ascii=False) for r in rows[:8]), encoding="utf-8"
+    )
+
+    cfg = SftConfig(
+        name="styler-test",
+        init_from="base",
+        seq_len=64,
+        batch_size=4,
+        epochs=4.0,
+        matrix_lr=1e-3,
+        log_every=1000,
+        eval_every=1000,
+        checkpoint_every=1000,
+    )
+    model, base = sft_loop.load_base(ck / "base.pt", "cpu")
+    before = sft_loop.evaluate(model, load_pairs(hold_p, enc, 64), 4, "cpu")
+
+    out = sft_loop.train_styler(cfg, train_p, hold_p, ck, "cpu")
+    assert out.exists()
+    after_model, _ = sft_loop.load_base(out, "cpu")
+    after = sft_loop.evaluate(after_model, load_pairs(hold_p, enc, 64), 4, "cpu")
+    assert after < before, f"held-out loss did not drop: {before:.3f} -> {after:.3f}"
+
+
+def test_the_styler_checkpoint_is_self_describing(tmp_path: Path, enc, sp, monkeypatch) -> None:
+    """Carries the base gptconfig through, so anything loading it can rebuild
+    the model without a config file (ADR 0017)."""
+    from cankar.train import sft_loop
+
+    monkeypatch.setattr("cankar.train.sft_loop.load_encoding", lambda name: enc)
+    ck = tmp_path / "checkpoints"
+    ck.mkdir()
+    _tiny_checkpoint(ck / "base.pt", enc)
+    rows = [{"plain": PLAIN, "cankar": CANKAR}] * 8
+    p = _pairs_file(tmp_path, rows)
+    cfg = SftConfig(
+        name="s",
+        init_from="base",
+        seq_len=64,
+        batch_size=4,
+        epochs=1.0,
+        log_every=1000,
+        eval_every=1000,
+        checkpoint_every=1000,
+    )
+    out = sft_loop.train_styler(cfg, p, p, ck, "cpu")
+    state = torch.load(out, map_location="cpu", weights_only=False)
+    assert state["gptconfig"]["n_layer"] == 2
+    assert state["init_from"] == "base" and state["base_step"] == 7
+
+
+def test_sft_refuses_a_missing_or_legacy_checkpoint(tmp_path: Path) -> None:
+    from cankar.train import sft_loop
+
+    with pytest.raises(CankarError, match="no checkpoint"):
+        sft_loop.load_base(tmp_path / "nope.pt", "cpu")
+    legacy = tmp_path / "legacy.pt"
+    torch.save({"model": {}, "step": 1}, legacy)
+    with pytest.raises(CankarError, match="self-describing"):
+        sft_loop.load_base(legacy, "cpu")
+
+
+def test_warmup_then_cosine_decays_to_the_floor(enc, sp) -> None:
+    cfg = SftConfig(warmup_frac=0.1, min_lr_frac=0.1)
+    assert lr_multiplier(0, 100, cfg) < lr_multiplier(9, 100, cfg)  # warming
+    assert lr_multiplier(10, 100, cfg) == pytest.approx(1.0, abs=0.01)  # peak
+    assert lr_multiplier(99, 100, cfg) == pytest.approx(0.1, abs=0.02)  # floor
+
+
+def test_held_out_loss_is_weighted_by_target_tokens(tmp_path: Path, enc, sp) -> None:
+    """Batches hold different numbers of SCORED tokens once the prompt is
+    masked out, so a per-batch mean would silently weight short targets more
+    heavily. Mutation-caught: dropping the weighting left the suite green,
+    because the end-to-end test only asserts the loss drops."""
+    from cankar.train import sft_loop
+
+    class FixedLoss:
+        """Returns a different loss per call, so batch-mean and token-weighted
+        mean are distinguishable."""
+
+        def __init__(self):
+            self.calls = 0
+            self.seen: list[tuple[float, int]] = []
+
+        def eval(self): ...
+        def train(self): ...
+
+        def __call__(self, x, targets=None):
+            self.calls += 1
+            loss = 1.0 if self.calls == 1 else 3.0
+            # record what this batch was worth, so the expectation does not
+            # depend on the shuffled batch order
+            self.seen.append((loss, int((targets != IGNORE_INDEX).sum())))
+            return torch.tensor(loss)
+
+    short = {"plain": "A.", "cankar": "A staro."}
+    long = {"plain": PLAIN * 3, "cankar": CANKAR * 3}
+    data = load_pairs(_pairs_file(tmp_path, [short, long]), enc, seq_len=256)
+    # batch_size 1 -> one batch per example, length-sorted so short comes first
+    ns = [e.n_target for e in sorted(data.examples, key=lambda e: len(e.tokens))]
+    assert ns[0] != ns[1], "fixture must have different target lengths"
+
+    model = FixedLoss()
+    got = sft_loop.evaluate(model, data, batch_size=1, device="cpu")
+    token_weighted = sum(v * n for v, n in model.seen) / sum(n for _, n in model.seen)
+    batch_mean = sum(v for v, _ in model.seen) / len(model.seen)
+    assert got == pytest.approx(token_weighted, abs=1e-6)
+    assert got != pytest.approx(batch_mean, abs=1e-3)
