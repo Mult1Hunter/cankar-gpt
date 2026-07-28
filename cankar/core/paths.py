@@ -7,7 +7,24 @@ Phase 3); every module computes locations through these helpers instead
 
 from __future__ import annotations
 
+from enum import StrEnum
 from pathlib import Path
+
+
+class PairSet(StrEnum):
+    """Which side of the contamination boundary an artifact belongs to.
+
+    TRAIN excludes held-out works; HOLDOUT is those works and ONLY those. They
+    are disjoint by construction and must never share a file: a random split of
+    TRAIN cannot evaluate the styler honestly, because every passage in it comes
+    from a work the base model already saw in pretraining.
+
+    An explicit enum rather than a boolean, and required at every path call, so
+    the set a caller means is never implied (`.claude/rules/code-standards.md`).
+    """
+
+    TRAIN = "train"
+    HOLDOUT = "holdout"
 
 
 def repo_root() -> Path:
@@ -118,27 +135,26 @@ def token_stats_report() -> Path:
     return repo_root() / "registry" / "reports" / "token-stats.md"
 
 
-def passages_shard() -> Path:
+def passages_shard(pair_set: PairSet) -> Path:
     """Phase 5 de-styling passages - own dir so corpus/chunks globs never see them."""
-    return repo_root() / "data" / "pairs" / "passages.jsonl"
+    return repo_root() / "data" / "pairs" / f"{pair_set.value}-passages.jsonl"
 
 
-def passages_manifest() -> Path:
-    """Committed provenance for the passage set: corpus + holdout + register shas
-    (ADR 0003). The register stamp is what makes design invariant #1 auditable."""
-    return dataset_manifest("pairs", "passages")
+def passages_manifest(pair_set: PairSet) -> Path:
+    """Committed provenance for the passage set (ADR 0003)."""
+    return dataset_manifest("pairs", f"{pair_set.value}-passages")
 
 
-def passages_report() -> Path:
+def passages_report(pair_set: PairSet) -> Path:
     """Snapshot report (computed from gitignored data/) - see reports README."""
-    return repo_root() / "registry" / "reports" / "passages.md"
+    return repo_root() / "registry" / "reports" / f"{pair_set.value}-passages.md"
 
 
-def destyle_raw() -> Path:
+def destyle_raw(pair_set: PairSet) -> Path:
     """Raw Batch API responses, append-only. Written BEFORE parsing: these bytes
     are what the money bought, so a parser bug must cost a re-parse and never a
     re-purchase. Also the ledger a resumed run subtracts against."""
-    return repo_root() / "data" / "pairs" / "destyle-raw.jsonl"
+    return repo_root() / "data" / "pairs" / f"{pair_set.value}-destyle-raw.jsonl"
 
 
 def batch_receipts() -> Path:
@@ -148,20 +164,24 @@ def batch_receipts() -> Path:
     return repo_root() / "registry" / "datasets" / "pairs" / "batches.jsonl"
 
 
-def pairs_shard() -> Path:
-    """The generated (plain -> cankar) training pairs."""
-    return repo_root() / "data" / "pairs" / "pairs.jsonl"
+def pairs_shard(pair_set: PairSet) -> Path:
+    """The generated (plain -> cankar) pairs."""
+    return repo_root() / "data" / "pairs" / f"{pair_set.value}-pairs.jsonl"
 
 
-def pairs_manifest() -> Path:
-    return dataset_manifest("pairs", "pairs")
+def pairs_manifest(pair_set: PairSet) -> Path:
+    return dataset_manifest("pairs", f"{pair_set.value}-pairs")
 
 
-def pairs_samples() -> Path:
+def pairs_samples(pair_set: PairSet) -> Path:
     """Committed before/after excerpts quoted by docs/. Small and in git on
-    purpose: pairs.jsonl is gitignored, so without this a published sample could
-    not be checked against the real data."""
-    return repo_root() / "registry" / "datasets" / "pairs" / "samples.jsonl"
+    purpose: the pair shards are gitignored, so without this a published sample
+    could not be checked against the real data.
+
+    Set-parameterised like every other artifact here: unparameterised, a holdout
+    run silently overwrote the training excerpts docs/ is gated against - the
+    exact shared-file hazard PairSet exists to prevent, caught by that gate."""
+    return repo_root() / "registry" / "datasets" / "pairs" / f"{pair_set.value}-samples.jsonl"
 
 
 def dataset_card() -> Path:
@@ -170,15 +190,15 @@ def dataset_card() -> Path:
     return repo_root() / "registry" / "datasets" / "pairs" / "DATASET_CARD.md"
 
 
-def rejected_pairs() -> Path:
+def rejected_pairs(pair_set: PairSet) -> Path:
     """Responses paid for but unusable. Kept as evidence about the model and the
     prompt - and never re-sent, since `already_done` reads the raw log."""
-    return repo_root() / "data" / "pairs" / "rejected.jsonl"
+    return repo_root() / "data" / "pairs" / f"{pair_set.value}-rejected.jsonl"
 
 
-def pairs_report() -> Path:
+def pairs_report(pair_set: PairSet) -> Path:
     """Snapshot report (computed from gitignored data/) - see reports README."""
-    return repo_root() / "registry" / "reports" / "pairs.md"
+    return repo_root() / "registry" / "reports" / f"{pair_set.value}-pairs.md"
 
 
 def holdout_manifest() -> Path:

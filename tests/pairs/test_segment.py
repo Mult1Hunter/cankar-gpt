@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from cankar.core.paths import PairSet
 from cankar.pairs.segment import (
     DocSkip,
     RejectReason,
@@ -320,3 +321,24 @@ def test_mid_paragraph_windows_are_counted(tmp_path: Path) -> None:
     result = segment_corpus(_corpus(tmp_path, [_doc(long_para)]), frozenset(), PROSE, PARAMS)
     assert len(result.passages) >= 2
     assert result.reject_counts["mid_paragraph"] >= 1
+
+
+def test_the_two_sets_are_disjoint_by_construction(tmp_path: Path) -> None:
+    """A doc eligible for TRAIN must be ineligible for HOLDOUT and vice versa.
+    One shared predicate, inverted - so the eval set cannot overlap the training
+    set no matter which command is run when."""
+    doc = _doc(PARA)
+    held = frozenset({doc["url"]})
+    assert classify_doc(doc, frozenset(), PROSE, PairSet.TRAIN) is None
+    assert classify_doc(doc, frozenset(), PROSE, PairSet.HOLDOUT) is DocSkip.NOT_HELD_OUT
+    assert classify_doc(doc, held, PROSE, PairSet.TRAIN) is DocSkip.HELD_OUT
+    assert classify_doc(doc, held, PROSE, PairSet.HOLDOUT) is None
+
+
+def test_holdout_set_segments_only_held_out_works(tmp_path: Path) -> None:
+    a, b = _doc(PARA), {**_doc(PARA), "url": "held"}  # same title -> same genre row
+    corpus = _corpus(tmp_path, [a, b])
+    train = segment_corpus(corpus, frozenset({"held"}), PROSE, PARAMS, PairSet.TRAIN)
+    hold = segment_corpus(corpus, frozenset({"held"}), PROSE, PARAMS, PairSet.HOLDOUT)
+    assert train.n_docs == 1 and hold.n_docs == 1
+    assert {p.url for p in train.passages}.isdisjoint({p.url for p in hold.passages})

@@ -26,6 +26,7 @@ from cankar.core.manifest import (
     write_manifest,
 )
 from cankar.core.paths import (
+    PairSet,
     batch_receipts,
     dataset_card,
     destyle_raw,
@@ -54,14 +55,15 @@ POLL_MAX_SECONDS = 60
 
 
 def _segment(args: argparse.Namespace) -> int:
+    pair_set = PairSet(args.set)
     corpus = merged_shard()
     ledger = works_registry(segment.WORKS_LEDGER)
     excludes = holdout_excludes(load_holdout(holdout_manifest()))
     genres = load_work_genres(ledger)
     params = segment.SegmentParams()
-    result = segment.segment_corpus(corpus, excludes, genres, params)
+    result = segment.segment_corpus(corpus, excludes, genres, params, pair_set)
 
-    out_shard = segment.write_passages(passages_shard(), result.passages)
+    out_shard = segment.write_passages(passages_shard(pair_set), result.passages)
     manifest = segment.PassagesManifest(
         segmenter_version=segment.SEGMENTER_VERSION,
         corpus_sha256=sha256_of(corpus),
@@ -71,6 +73,7 @@ def _segment(args: argparse.Namespace) -> int:
         git_sha=git_sha(),
         created_at=utc_now_iso(),
         source=segment.SOURCE_WIKIVIR,
+        pair_set=pair_set.value,
         prose_genres=sorted(segment.PROSE_GENRES),
         params=params,
         n_docs=result.n_docs,
@@ -79,10 +82,11 @@ def _segment(args: argparse.Namespace) -> int:
         reject_counts=result.reject_counts,
         doc_skips=result.doc_skips,
     )
-    out_manifest = write_manifest(manifest, passages_manifest())
-    report = segment.write_passages_report(passages_report(), manifest)
+    out_manifest = write_manifest(manifest, passages_manifest(pair_set))
+    report = segment.write_passages_report(passages_report(pair_set), manifest)
     log.info(
-        "segmented %d docs -> %d passages (%d chars); skipped docs: %s -> %s + %s + %s",
+        "[%s] segmented %d docs -> %d passages (%d chars); skipped docs: %s -> %s + %s + %s",
+        pair_set.value,
         result.n_docs,
         len(result.passages),
         manifest.n_chars,
@@ -104,7 +108,7 @@ def _client():  # type: ignore[no-untyped-def]
     return anthropic.Anthropic()
 
 
-def _drain(client, receipt: destyle.BatchReceipt) -> int:  # type: ignore[no-untyped-def]
+def _drain(client, receipt: destyle.BatchReceipt, pair_set: PairSet) -> int:  # type: ignore[no-untyped-def]
     """Poll one submitted batch to completion and append its raw responses.
 
     Idempotent by construction: `already_done` reads the raw log, so a second
@@ -121,18 +125,19 @@ def _drain(client, receipt: destyle.BatchReceipt) -> int:  # type: ignore[no-unt
 
     results = client.messages.batches.results(receipt.batch_id)
     records = [json.loads(r.model_dump_json()) for r in results]
-    destyle.append_raw(destyle_raw(), records)
-    log.info("batch %s: %d responses -> %s", receipt.batch_id, len(records), destyle_raw())
+    destyle.append_raw(destyle_raw(pair_set), records)
+    log.info("batch %s: %d responses -> %s", receipt.batch_id, len(records), destyle_raw(pair_set))
     return len(records)
 
 
 def _destyle(args: argparse.Namespace) -> int:
-    passages = destyle.load_passages(passages_shard())
+    pair_set = PairSet(args.set)
+    passages = destyle.load_passages(passages_shard(pair_set))
     receipts = destyle.load_receipts(batch_receipts())
 
     # Costing must not require a credential: --dry-run submits nothing.
     if args.dry_run:
-        done = destyle.already_done(destyle_raw())
+        done = destyle.already_done(destyle_raw(pair_set))
         todo = destyle.select_passages(passages, args.limit, done)
         est = destyle.estimate_cost(todo)
         if not todo:
@@ -170,16 +175,16 @@ def _destyle(args: argparse.Namespace) -> int:
         # the paid batch, never submit a second one for the same passages.
         for receipt in destyle.pending_receipts(receipts):
             log.info("resuming un-downloaded batch %s", receipt.batch_id)
-            _drain(client, receipt)
+            _drain(client, receipt, receipt.pair_set)
             destyle.append_receipt(
                 batch_receipts(), receipt.model_copy(update={"downloaded": True})
             )
 
-        done = destyle.already_done(destyle_raw())
+        done = destyle.already_done(destyle_raw(pair_set))
         if args.retry_rejected:
             # The one path that knowingly pays twice - only worth it after
             # fixing a cause on our side.
-            retry = destyle.retryable(destyle_raw(), passages)
+            retry = destyle.retryable(destyle_raw(pair_set), passages)
             log.info("retrying %d previously rejected passages (re-billed)", len(retry))
             done = done - retry
         todo = destyle.select_passages(passages, args.limit, done)
@@ -199,21 +204,22 @@ def _destyle(args: argparse.Namespace) -> int:
                 created_at=utc_now_iso(),
                 model=args.model,
                 n_requests=len(requests),
+                pair_set=pair_set,
             )
             # Appended BEFORE the wait: this id is the only route back to
             # results that already exist server-side.
             destyle.append_receipt(batch_receipts(), receipt)
             receipts = destyle.load_receipts(batch_receipts())
             log.info("submitted batch %s (%d requests) - receipt written", batch.id, len(requests))
-            _drain(client, receipt)
+            _drain(client, receipt, receipt.pair_set)
             destyle.append_receipt(
                 batch_receipts(), receipt.model_copy(update={"downloaded": True})
             )
 
     receipts = destyle.load_receipts(batch_receipts())
-    pairs, rejected = destyle.build_pairs(passages, destyle_raw(), args.model)
-    out_shard = destyle.write_pairs(pairs_shard(), pairs)
-    destyle.write_rejected(rejected_pairs(), rejected)
+    pairs, rejected = destyle.build_pairs(passages, destyle_raw(pair_set), args.model)
+    out_shard = destyle.write_pairs(pairs_shard(pair_set), pairs)
+    destyle.write_rejected(rejected_pairs(pair_set), rejected)
     reject_counts: dict[str, int] = {}
     for r in rejected:
         reject_counts[str(r.reason)] = reject_counts.get(str(r.reason), 0) + 1
@@ -221,8 +227,9 @@ def _destyle(args: argparse.Namespace) -> int:
     manifest = destyle.PairsManifest(
         destyler_version=destyle.DESTYLER_VERSION,
         model=args.model,
+        pair_set=pair_set.value,
         corpus_sha256=sha256_of(merged_shard()),
-        passages_sha256=sha256_of(passages_shard()),
+        passages_sha256=sha256_of(passages_shard(pair_set)),
         register_sha256=REGISTER_SHA256,
         pairs_sha256=sha256_of(out_shard),
         batch_ids=[r.batch_id for r in receipts],
@@ -247,9 +254,11 @@ def _destyle(args: argparse.Namespace) -> int:
             f"receipt is missing from {batch_receipts()}. Recover the id from "
             "`client.messages.batches.list()` before freezing."
         )
-    out_manifest = write_manifest(manifest, pairs_manifest())
-    destyle.write_pairs(pairs_samples(), publish.select_samples(pairs))
-    report = destyle.write_pairs_report(pairs_report(), manifest, publish.select_samples(pairs, 3))
+    out_manifest = write_manifest(manifest, pairs_manifest(pair_set))
+    destyle.write_pairs(pairs_samples(pair_set), publish.select_samples(pairs))
+    report = destyle.write_pairs_report(
+        pairs_report(pair_set), manifest, publish.select_samples(pairs, 3)
+    )
     log.info(
         "%d pairs, %d rejected (%s) -> %s + %s + %s",
         len(pairs),
@@ -267,14 +276,22 @@ def _publish(args: argparse.Namespace) -> int:
         raise CankarError("HF_TOKEN not set (see .env.example; needs write on the dataset repo)")
     from huggingface_hub import HfApi
 
-    pairs_mf = load_frozen(pairs_manifest(), destyle.PairsManifest, "cankar pairs destyle")
-    passages_mf = load_frozen(passages_manifest(), segment.PassagesManifest, "cankar pairs segment")
+    # The published dataset is the TRAINING corpus. The holdout set is the
+    # measuring stick and stays local: publishing it invites someone to train on
+    # it and then report a number it can no longer support.
+    published = PairSet.TRAIN
+    pairs_mf = load_frozen(pairs_manifest(published), destyle.PairsManifest, "cankar pairs destyle")
+    passages_mf = load_frozen(
+        passages_manifest(published), segment.PassagesManifest, "cankar pairs segment"
+    )
 
     card = publish.dataset_card(pairs_mf, passages_mf, args.repo)
     publish.require_licensed(card)
     card_path = dataset_card()
     card_path.write_text(card, encoding="utf-8")
-    uploads = publish.build_uploads(pairs_shard(), destyle_raw(), pairs_manifest(), card_path)
+    uploads = publish.build_uploads(
+        pairs_shard(published), destyle_raw(published), pairs_manifest(published), card_path
+    )
     publish.check_uploads(uploads)
 
     if args.dry_run:
@@ -310,9 +327,21 @@ def register(parser: argparse.ArgumentParser) -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
     s = sub.add_parser("segment", help="cut Cankar prose into de-styling passages (Phase 5)")
+    s.add_argument(
+        "--set",
+        default=PairSet.TRAIN.value,
+        choices=[p.value for p in PairSet],
+        help="train excludes held-out works; holdout is those works only",
+    )
     s.set_defaults(func=_segment)
 
     d = sub.add_parser("destyle", help="Batch API de-styling into plain Slovene (SPENDS MONEY)")
+    d.add_argument(
+        "--set",
+        default=PairSet.TRAIN.value,
+        choices=[p.value for p in PairSet],
+        help="which passage set to de-style",
+    )
     d.add_argument("--limit", type=int, default=10_000, help="max passages to submit this run")
     d.add_argument("--model", default=destyle.DEFAULT_MODEL, help="model id")
     d.add_argument("--dry-run", action="store_true", help="report size and submit nothing")

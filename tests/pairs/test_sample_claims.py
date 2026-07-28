@@ -23,7 +23,7 @@ import re
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent.parent
-SAMPLES = REPO / "registry" / "datasets" / "pairs" / "samples.jsonl"
+SAMPLES = REPO / "registry" / "datasets" / "pairs" / "train-samples.jsonl"
 DOC = REPO / "docs" / "pairs-samples.md"
 
 # Blockquote lines of the form "> **Cankar:** ..." / "> **plain:** ..."

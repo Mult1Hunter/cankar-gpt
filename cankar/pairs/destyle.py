@@ -41,6 +41,7 @@ from pydantic import BaseModel
 
 from cankar.core.errors import CankarError
 from cankar.core.jsonl import iter_jsonl_docs
+from cankar.core.paths import PairSet
 from cankar.core.register import PLAIN_REGISTER, SOURCE_FIDELITY
 from cankar.core.reports import generated_marker, write_report
 from cankar.pairs.segment import Passage
@@ -453,6 +454,7 @@ class PairsManifest(BaseModel):
     schema_version: int = 1
     destyler_version: int
     model: str
+    pair_set: str
     corpus_sha256: str
     passages_sha256: str
     register_sha256: str
@@ -530,6 +532,9 @@ class BatchReceipt(BaseModel):
     model: str
     n_requests: int
     downloaded: bool = False
+    # Which set this batch belongs to, so a resumed drain appends to the right
+    # raw log. Defaults to TRAIN so receipts written before the split still load.
+    pair_set: PairSet = PairSet.TRAIN
 
 
 def load_receipts(path: Path) -> list[BatchReceipt]:

@@ -29,11 +29,13 @@ def test_each_required_term_is_individually_enforced(term: str) -> None:
 def test_the_generated_card_satisfies_its_own_gate() -> None:
     """The card writer and the gate must not drift apart."""
     from cankar.core.manifest import load_frozen
-    from cankar.core.paths import pairs_manifest, passages_manifest
+    from cankar.core.paths import PairSet, pairs_manifest, passages_manifest
     from cankar.pairs.destyle import PairsManifest
     from cankar.pairs.publish import dataset_card
     from cankar.pairs.segment import PassagesManifest
 
-    pairs = load_frozen(pairs_manifest(), PairsManifest, "cankar pairs destyle")
-    passages = load_frozen(passages_manifest(), PassagesManifest, "cankar pairs segment")
+    pairs = load_frozen(pairs_manifest(PairSet.TRAIN), PairsManifest, "cankar pairs destyle")
+    passages = load_frozen(
+        passages_manifest(PairSet.TRAIN), PassagesManifest, "cankar pairs segment"
+    )
     require_licensed(dataset_card(pairs, passages, "x/y"))
