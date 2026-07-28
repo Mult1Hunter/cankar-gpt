@@ -124,13 +124,7 @@ def load_work_genres(path: Path) -> dict[str, str | None]:
 
 def genre_of(genres: dict[str, str | None], title: str, author: str) -> str | None:
     """Genre for a corpus doc title, or None when the ledger has no genre AND
-    when the title matches no row - two different facts that callers of a
-    default-deny policy treat the same way. `known_work` separates them."""
+    when the title matches no row. Deliberately conflated: every caller today
+    runs a default-deny policy and treats both identically. Split them when a
+    caller needs to tell them apart, not before."""
     return genres.get(normalize_for_author(title, author))
-
-
-def known_work(genres: dict[str, str | None], title: str, author: str) -> bool:
-    """Whether the title resolves to a ledger row at all (ADR 0004: an
-    authored-literary doc that matches nothing is a triage case, not a silent
-    drop) - so a caller can tell 'no genre recorded' from 'no such work'."""
-    return normalize_for_author(title, author) in genres

@@ -16,8 +16,23 @@ slice rather than assumed:
    Phase 6 to hallucinate at boundaries (the ADR 0006 failure shape).
 
 2. **Passages never cross a paragraph break.** The median Cankar paragraph is
-   already 2 sentences (p90 = 5), so paragraphs ARE the 2-6 sentence unit; a
-   window that spans them would join text across a scene break for no gain.
+   already 2 sentences (p90 = 5), so paragraphs mostly ARE the 2-6 sentence
+   unit; a window that spans them would join text across a scene break for no
+   gain.
+
+   The tail is the exception, and the docstring used to overstate this: a
+   paragraph longer than `max_sentences` is windowed, so **19.1% of passages
+   start mid-paragraph** and can open on a dangling demonstrative ("Ta ni
+   zmerjal ...") or a conjunction. `mid_paragraph` counts them in the manifest
+   rather than leaving the class invisible (design-review 2026-07-28).
+
+   Kept rather than dropped, on a specific argument: BOTH sides of such a pair
+   share the same missing antecedent, so the pair is internally consistent and
+   teaches fragment-to-fragment rewriting, which is fine. The real risk is
+   narrower - a de-styler that INVENTS a referent to smooth the opening - and
+   that is a `SOURCE_FIDELITY` violation no current filter can see. Dropping
+   non-initial windows is the conservative alternative and costs ~2,670
+   passages out of a surplus that can afford it.
 
 3. **Wikivir only.** The 41 dLib docs carry a median of ZERO blank-line
    paragraphs at 78-char hard-wrapped lines - the paragraph structure this
@@ -118,6 +133,12 @@ _HEADING = re.compile(r"^(?:[IVXL]{1,6}\.?|[A-ZČŠŽ][A-ZČŠŽ \-]{3,})$")
 _LEADING_HEADING = re.compile(r"^(?:[IVXL]{1,6}\.|[IVXL]{2,6})\s+(?=[A-ZČŠŽ»„“])")
 
 
+# Not a rejection: a COUNTER, carried in the same dict so the manifest surfaces
+# it. A passage windowed out of a long paragraph is kept (see module docstring),
+# but the class must be visible rather than implied.
+_MID_PARAGRAPH = "mid_paragraph"
+
+
 class RejectReason(StrEnum):
     """Why a candidate did not become a passage. Closed set, so a StrEnum
     (`.claude/rules/code-standards.md`); the counts land in the manifest so a
@@ -138,25 +159,28 @@ class RejectReason(StrEnum):
 class SegmentParams(BaseModel):
     """Thresholds, each carrying its calibration (ADR 0006 companion rule).
 
-    Measured over 101,509 sentences in 36,830 paragraphs from the 155 wikivir
-    Cankar docs left after holdout exclusion.
+    Re-measured at segmenter v2 over the 32,009 candidate windows from the 82
+    wikivir prose docs that survive the holdout and genre filters. The first
+    version quoted v1 numbers (155 docs, 41,641 candidates) that the genre
+    filter had already invalidated - provenance measured on a population that no
+    longer exists is worse than none, because it looks checked
+    (design-review 2026-07-28).
     """
 
     # ROADMAP Phase 5 defines the passage as 2-6 sentences.
     min_sentences: int = 2
     max_sentences: int = 6
-    # Median sentence is 65 chars. 120 sits just under the MEDIAN 2-sentence
-    # paragraph (123 chars), so this is an aggressive floor, not a permissive
-    # one: it rejects 21.2% of all windows and 46.9% of 2-sentence windows.
-    # That is intended - below ~120 chars de-styling is near an identity
-    # transform and the pair teaches nothing - but the cost is real and is paid
-    # out of the surplus, not free (design-review 2026-07-28).
+    # Median sentence is 65 chars. 120 sits just under the median 2-sentence
+    # paragraph, so this is a deliberate floor, not a permissive one: it rejects
+    # 3,456 windows, 10.8% of all candidates. That is intended - below ~120
+    # chars de-styling is near an identity transform and the pair teaches
+    # nothing - but the cost is real and paid out of the surplus, not free.
     min_chars: int = 120
-    # Measured over the frozen artifact: p50 301, p90 590, p95 670, p99 763.
-    # 800 sits above p95 and bounds per-request cost. Rejects 604 windows: 3.3%
-    # of the 18,166 that already cleared min_chars, 1.5% of all 41,641
-    # candidates. (An earlier comment cited p95 = 545 - that was measured on a
-    # different population, greedy 4-sentence groups, and did not reproduce.)
+    # Kept-passage lengths at v2: p50 304, p90 594, p95 673, p99 764. 800 sits
+    # above p95 and bounds per-request cost, rejecting 496 windows (1.5% of the
+    # 32,009 candidates). Two earlier figures here did not reproduce - p95 = 545
+    # was measured on greedy 4-sentence groups, and 604/41,641 predates the
+    # genre filter. Both are corrected rather than the conclusion retrofitted.
     max_chars: int = 800
 
 
@@ -236,6 +260,7 @@ def segment_doc(doc: dict, params: SegmentParams) -> tuple[list[Passage], Counte
         sentences = split_sentences(para)
         for i in range(0, len(sentences), params.max_sentences):
             group = sentences[i : i + params.max_sentences]
+            mid_paragraph = i > 0
             text = " ".join(group)
             if len(group) < params.min_sentences:
                 rejects[RejectReason.TOO_FEW_SENTENCES] += 1
@@ -246,6 +271,8 @@ def segment_doc(doc: dict, params: SegmentParams) -> tuple[list[Passage], Counte
             if len(text) > params.max_chars:
                 rejects[RejectReason.TOO_LONG] += 1
                 continue
+            if mid_paragraph:
+                rejects[_MID_PARAGRAPH] += 1
             kept.append(
                 Passage(
                     passage_id=passage_id(text),
@@ -380,7 +407,7 @@ def write_passages_report(out: Path, manifest: PassagesManifest) -> Path:
     # is a reject reason, so kept + all rejects is the true candidate count; the
     # earlier version added post-dedup kept to pre-dedup rejects and divided by a
     # number that described neither (design-review 2026-07-28).
-    total = m.n_passages + sum(m.reject_counts.values())
+    total = m.n_passages + sum(v for k, v in m.reject_counts.items() if k != _MID_PARAGRAPH)
     lines: list[str] = [
         generated_marker("cankar pairs segment", snapshot=True),
         "",

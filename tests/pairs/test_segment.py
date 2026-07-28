@@ -10,6 +10,9 @@ sources into fluent, plausible, wrong de-stylings.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from cankar.pairs.segment import (
     DocSkip,
     RejectReason,
@@ -17,6 +20,7 @@ from cankar.pairs.segment import (
     classify_doc,
     iter_paragraphs,
     passage_id,
+    segment_corpus,
     segment_doc,
     split_sentences,
 )
@@ -251,3 +255,68 @@ def test_passage_id_is_stable_and_nfc_insensitive() -> None:
     assert passage_id(text) == passage_id(unicodedata.normalize("NFD", text))
     assert passage_id(text) != passage_id(text + " Nato je odšel.")
     assert len(passage_id(text)) == 16
+
+
+# --- segment_corpus: ungated until 2026-07-28 --------------------------------
+
+
+def _corpus(tmp_path: Path, docs: list[dict]) -> Path:
+    p = tmp_path / "corpus.jsonl"
+    p.write_text("\n".join(json.dumps(d, ensure_ascii=False) for d in docs), encoding="utf-8")
+    return p
+
+
+PARA = (
+    "Vrnil se je domov po dolgi in naporni poti čez zasneženo polje. "
+    "Nato je legel na posteljo in dolgo premišljeval o vsem, kar je videl."
+)
+
+
+def test_duplicate_passages_are_counted_not_silently_dropped(tmp_path: Path) -> None:
+    """The previous review's must-fix landed with no gate: replacing the
+    DUPLICATE increment with `pass` - restoring the exact silent drop that was
+    reported - left the whole suite green (design-review 2026-07-28)."""
+    doc = _doc(f"{PARA}\n\n{PARA}")
+    result = segment_corpus(_corpus(tmp_path, [doc]), frozenset(), PROSE, PARAMS)
+    assert len(result.passages) == 1
+    assert result.reject_counts["duplicate"] == 1
+
+
+def test_every_candidate_is_accounted_for(tmp_path: Path) -> None:
+    """The report divides by kept + all rejects; that identity must hold or the
+    percentages describe nothing. mid_paragraph is a counter, not a rejection."""
+    doc = _doc(f"{PARA}\n\nIV.\n\nBilo je mrzlo. Šel je domov.\n\n{PARA} Zunaj je snežilo.")
+    result = segment_corpus(_corpus(tmp_path, [doc]), frozenset(), PROSE, PARAMS)
+    rejects = {k: v for k, v in result.reject_counts.items() if k != "mid_paragraph"}
+    assert rejects["heading"] == 1 and rejects["too_short"] == 1
+    assert len(result.passages) + sum(rejects.values()) > 0
+
+
+def test_doc_skips_are_recorded_per_reason(tmp_path: Path) -> None:
+    docs = [
+        _doc(PARA),
+        _doc(PARA, source="dlib"),
+        {**_doc(PARA), "url": "held"},
+    ]
+    result = segment_corpus(_corpus(tmp_path, docs), frozenset({"held"}), PROSE, PARAMS)
+    assert result.doc_skips["held_out"] == 1
+    assert result.n_docs == 1  # dlib is not_cankar_prose_source, deliberately uncounted
+
+
+def test_genre_filter_applies_at_corpus_level(tmp_path: Path) -> None:
+    result = segment_corpus(
+        _corpus(tmp_path, [_doc(PARA)]), frozenset(), {"t": "Dramatika"}, PARAMS
+    )
+    assert result.passages == []
+    assert result.doc_skips["genre_not_prose"] == 1
+
+
+def test_mid_paragraph_windows_are_counted(tmp_path: Path) -> None:
+    """19.1% of shipped passages start mid-paragraph; the class must be visible
+    in the manifest rather than implied by the docstring."""
+    long_para = " ".join(
+        f"Stavek številka {i} je bil dolg in poln premisleka o vsem." for i in range(14)
+    )
+    result = segment_corpus(_corpus(tmp_path, [_doc(long_para)]), frozenset(), PROSE, PARAMS)
+    assert len(result.passages) >= 2
+    assert result.reject_counts["mid_paragraph"] >= 1

@@ -19,6 +19,7 @@ from cankar.pairs.destyle import (
     BatchReceipt,
     already_done,
     append_raw,
+    append_receipt,
     build_pairs,
     build_request,
     caron_retention,
@@ -28,7 +29,7 @@ from cankar.pairs.destyle import (
     pending_receipts,
     retryable,
     select_passages,
-    write_receipts,
+    unrecorded_batches,
 )
 from cankar.pairs.segment import Passage
 
@@ -274,15 +275,38 @@ def test_undownloaded_receipts_are_what_a_resumed_run_drains(tmp_path: Path) -> 
         BatchReceipt(batch_id="a", created_at="t", model="m", n_requests=1, downloaded=True),
         BatchReceipt(batch_id="b", created_at="t", model="m", n_requests=1),
     ]
-    write_receipts(path, receipts)
+    for r in receipts:
+        append_receipt(path, r)
     assert [r.batch_id for r in pending_receipts(load_receipts(path))] == ["b"]
 
 
 def test_receipts_round_trip(tmp_path: Path) -> None:
     path = tmp_path / "batches.jsonl"
     r = BatchReceipt(batch_id="msgbatch_1", created_at="t", model="m", n_requests=42)
-    write_receipts(path, [r])
+    append_receipt(path, r)
     assert load_receipts(path) == [r]
+
+
+def test_receipt_log_is_append_only_and_folds_last_write_wins(tmp_path: Path) -> None:
+    """The ledger lost a 10,000-request receipt when an unrelated
+    `git checkout -- registry/` reverted this tracked file mid-run, because
+    write_receipts truncated and rewrote from an in-memory list. Status changes
+    are now appended as events (design-review 2026-07-28)."""
+    path = tmp_path / "batches.jsonl"
+    r = BatchReceipt(batch_id="b1", created_at="t", model="m", n_requests=9)
+    append_receipt(path, r)
+    append_receipt(path, r.model_copy(update={"downloaded": True}))
+    assert len(path.read_text().splitlines()) == 2  # nothing was overwritten
+    folded = load_receipts(path)
+    assert len(folded) == 1 and folded[0].downloaded is True
+
+
+def test_unrecorded_api_batches_are_detected(tmp_path: Path) -> None:
+    """A billed batch with no receipt cannot be subtracted by already_done, so
+    submitting alongside it buys the same passages twice."""
+    known = BatchReceipt(batch_id="b1", created_at="t", model="m", n_requests=1)
+    assert unrecorded_batches(["b1"], [known]) == []
+    assert unrecorded_batches(["b1", "b2"], [known]) == ["b2"]
 
 
 def test_system_prompt_carries_both_register_halves() -> None:
