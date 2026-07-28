@@ -118,6 +118,69 @@ def token_stats_report() -> Path:
     return repo_root() / "registry" / "reports" / "token-stats.md"
 
 
+def passages_shard() -> Path:
+    """Phase 5 de-styling passages - own dir so corpus/chunks globs never see them."""
+    return repo_root() / "data" / "pairs" / "passages.jsonl"
+
+
+def passages_manifest() -> Path:
+    """Committed provenance for the passage set: corpus + holdout + register shas
+    (ADR 0003). The register stamp is what makes design invariant #1 auditable."""
+    return dataset_manifest("pairs", "passages")
+
+
+def passages_report() -> Path:
+    """Snapshot report (computed from gitignored data/) - see reports README."""
+    return repo_root() / "registry" / "reports" / "passages.md"
+
+
+def destyle_raw() -> Path:
+    """Raw Batch API responses, append-only. Written BEFORE parsing: these bytes
+    are what the money bought, so a parser bug must cost a re-parse and never a
+    re-purchase. Also the ledger a resumed run subtracts against."""
+    return repo_root() / "data" / "pairs" / "destyle-raw.jsonl"
+
+
+def batch_receipts() -> Path:
+    """Committed batch-id receipts, appended at SUBMIT time. Results live
+    server-side for weeks; without the id that copy is unreachable, so this is
+    the difference between a re-download and paying twice."""
+    return repo_root() / "registry" / "datasets" / "pairs" / "batches.jsonl"
+
+
+def pairs_shard() -> Path:
+    """The generated (plain -> cankar) training pairs."""
+    return repo_root() / "data" / "pairs" / "pairs.jsonl"
+
+
+def pairs_manifest() -> Path:
+    return dataset_manifest("pairs", "pairs")
+
+
+def pairs_samples() -> Path:
+    """Committed before/after excerpts quoted by docs/. Small and in git on
+    purpose: pairs.jsonl is gitignored, so without this a published sample could
+    not be checked against the real data."""
+    return repo_root() / "registry" / "datasets" / "pairs" / "samples.jsonl"
+
+
+def dataset_card() -> Path:
+    """The card published to the Hub. In registry/, not gitignored data/: what
+    gets published must be reviewable in git like any other committed claim."""
+    return repo_root() / "registry" / "datasets" / "pairs" / "DATASET_CARD.md"
+
+
+def rejected_pairs() -> Path:
+    """Responses paid for but unusable. Kept as evidence about the model and the
+    prompt - and never re-sent, since `already_done` reads the raw log."""
+    return repo_root() / "data" / "pairs" / "rejected.jsonl"
+
+
+def pairs_report() -> Path:
+    """Snapshot report (computed from gitignored data/) - see reports README."""
+    return repo_root() / "registry" / "reports" / "pairs.md"
+
+
 def holdout_manifest() -> Path:
     """Frozen held-out eval set (ADR 0013): generated once, committed,
     provenance-stamped like registry/datasets/, load-bearing - never

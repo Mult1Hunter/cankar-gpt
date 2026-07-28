@@ -41,7 +41,7 @@ ROOT_ALLOWLIST = {
 }
 
 # Rule 4: a stage exists everywhere or nowhere. New stage = edit this tuple.
-STAGES = ("corpus", "tokenizer", "evals", "train")  # train: Phase 2.5/3 (ADR 0016)
+STAGES = ("corpus", "tokenizer", "evals", "train", "pairs")  # pairs: Phase 5 (ADR 0007)
 NON_STAGE_PACKAGES = {"core", "model"}  # model: vendored GPT, bottom layer (ADR 0016)
 
 BANNED_BASENAMES = {"utils.py", "helpers.py", "common.py", "misc.py"}
@@ -83,6 +83,26 @@ def test_stage_mirror() -> None:
     assert config_dirs <= set(STAGES), f"configs/ dirs {config_dirs} not all stages"
     fixture_dirs = {p.name for p in (REPO / "tests" / "fixtures").iterdir() if p.is_dir()}
     assert fixture_dirs <= set(STAGES), f"fixture dirs {fixture_dirs} not all stages"
+
+
+def test_import_contract_covers_every_stage() -> None:
+    """Rule 4, second half: STAGES and the import-linter top layer are two
+    hand-maintained copies of one set, and they drifted - `cankar.pairs` shipped
+    with no layering enforcement at all, so a sideways `cankar.pairs ->
+    cankar.corpus` import passed the contract (design-review 2026-07-28).
+    A rule without a check is a wish."""
+    import tomllib
+
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
+    contracts = pyproject["tool"]["importlinter"]["contracts"]
+    layered = [c for c in contracts if c.get("type") == "layers"]
+    assert layered, "no layers contract in pyproject.toml"
+    top = layered[0]["layers"][0]
+    declared = {part.strip().removeprefix("cankar.") for part in top.split("|")}
+    assert declared == set(STAGES), (
+        f"import-linter top layer {sorted(declared)} != STAGES {sorted(STAGES)} - "
+        f"a stage missing here has no sibling-independence enforcement"
+    )
 
 
 def test_no_banned_basenames() -> None:

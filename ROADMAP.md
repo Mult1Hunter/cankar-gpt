@@ -223,8 +223,24 @@ Do not build serving or the Laravel orchestrator before the styler exists.
 
 ## Phase 5 - Synthetic style pairs (1-2 sessions, ~$5-15 API)
 
-- [ ] Chunk Cankar into 5-15k passages (2-6 sentences)
-- [ ] Claude Batch API de-styling -> plain modern Slovene; pair `(plain -> original Cankar)`
+- [x] Chunk Cankar into 5-15k passages (2-6 sentences): `cankar pairs segment`
+      cuts **13,872** paragraph-bounded passages (4.73M chars) from the 82 wikivir
+      prose docs left after excluding 50 held-out works and 73 non-prose ones.
+      Own sentence splitter - the chunker's cuts at 28.5% of the corpus's
+      ellipses, harmless in a token-budget ladder and corrupting here. Genre is
+      read from the committed works ledger: segmenting Cankar's six plays as
+      prose produced 1,223 passages with speaker labels glued into the source
+      (design-review 2026-07-28). Surplus is what lets the segmenter reject every
+      ambiguous candidate - including works whose ledger row records no genre -
+      instead of parsing it
+- [x] Claude Batch API de-styling -> plain modern Slovene; pair `(plain -> original Cankar)`:
+      `cankar pairs destyle` -> **10,043 pairs** from 10,049 responses on
+      `claude-sonnet-5` (6.4M in / 1.7M out tokens, batch-priced). Model chosen by
+      a 50-passage pilot, not preference: Haiku 4.5 produced broken Slovene
+      grammar that the frozen style classifier scored identically (0.693 vs
+      0.690) - the metric could not see the only thing that mattered. Resumable
+      by construction: content-addressed `custom_id`, raw responses persisted
+      before parsing, batch receipts committed at submit time
 - [ ] **Distribution-shift fix (A1):** ONE shared "plain Slovene register" prompt, reused verbatim for
   (a) de-styling in training data generation and (b) draft-writing at inference. Non-negotiable design invariant.
   *(the definition + its one-home gate landed early: `cankar/core/register.py`,
@@ -232,7 +248,16 @@ Do not build serving or the Laravel orchestrator before the styler exists.
   exists yet, so "reused verbatim" is not true until (a) and (b) both import
   `PLAIN_REGISTER`)*
 - [ ] QA: spot-check 50-100 pairs; auto-filter bottom 5-10% (length-ratio + LLM meaning score)
-- [ ] Publish dataset to HF Hub (`cankar-parallel`) - target side PD, source side own output; standalone contribution
+- [x] Publish dataset to HF Hub (`cankar-parallel`) - target side PD, source side own
+      output; standalone contribution. `cankar pairs publish` -> pairs + raw responses +
+      manifest + a card generated from the manifests so it cannot drift. **PRIVATE**
+      until the Wikivir-transcription licensing question is answered - that is a
+      maintainer decision, and private->public is the easy direction
+- [x] Content capture (added in-flight): `docs/pairs-samples.md` shows what "Cankar
+      style" consists of via real before/after pairs, gated by
+      `tests/pairs/test_sample_claims.py` against committed excerpts in
+      `registry/datasets/pairs/samples.jsonl`. Blog examples cannot be quietly
+      prettified - the gate caught its own author doing exactly that on first run
 
 ## Phase 6 - Style-transfer SFT (hours)
 
@@ -306,18 +331,26 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       retiring the header-regex freshness path for those two
 - [ ] `corpus_stamp(sha)` helper in `cankar/core/reports.py`, adopted by the five
       writers (evals/holdout, evals/bpb, tokenizer/chunk, tokenizer/evaluate,
-      tokenizer/stats), so the stamp is an exact-line match not an 80-char window.
-      Today those five emit five different phrasings; all parse, one by 4 chars.
+      tokenizer/stats, pairs/segment, pairs/destyle), so the stamp is an exact-line
+      match not an 80-char window. Seven writers now, still five phrasings -
+      `passages.md` and `pairs.md` reuse `bpb.md`'s exact line - all parse, one by
+      4 chars.
       **Blocked on a decision, not on effort:** adopting a canonical stamp means
       regenerating each report, and `eval-holdout.md`'s writer is
       `cankar evals holdout-freeze` - re-running it re-selects the held-out works
       that every BPB number is measured against, which `registry/evals/README.md`
       permits only on a deliberate corpus re-merge. Do this AT the next re-merge,
       or accept a legacy phrasing for that one report
-- [ ] `ProvenanceStamped` base for the three manifests that all declare
+- [ ] Segment the 41 dLib Cankar docs. They carry a median of ZERO blank-line
+      paragraphs at 78-char hard-wrapped lines, so `pairs/segment.py`'s paragraph
+      unit is absent and recovering it means guessing where breaks were. Skipped
+      because wikivir prose alone yields 13,872 passages against a ~10k need - revisit
+      only if Phase 6 turns out to be data-starved, never for coverage's sake
+- [ ] `ProvenanceStamped` base for the FIVE manifests that all declare
       `schema_version / corpus_sha256 / git_sha / created_at` (core/holdout,
-      evals/style, evals/bpb). The drift risk is the caller side - `cli.py` now
-      types those three fields out three times and forgetting one is silent.
+      evals/style, evals/bpb, pairs/segment, pairs/destyle). The drift risk is the
+      caller side - `cli.py` now types those fields out five times and forgetting
+      one is silent. Phase 5 added two at once, so the trigger has now fired.
       Is-a, not inheritance-for-reuse, and field order keeps the committed JSON
       byte-compatible. Deferred: it touches three frozen artifacts at once
 - [x] Committed BPB report/manifest for canonical checkpoints: `cankar evals

@@ -20,6 +20,8 @@ dependencies = [
     "joblib>=1.4",
     "numpy>=1.26",  # imported directly; version pinned in the style manifest
     "scipy>=1.11",  # version pinned in the style manifest (reproducibility)
+    "anthropic>=0.120.0",
+    "huggingface-hub>=1.25.1",
 ]
 
 [project.urls]
@@ -70,7 +72,10 @@ name = "core is the bottom layer; stages sit above it and stay independent"
 type = "layers"
 # bottom layer = core | model (both leaf: model is the vendored GPT, imports only
 # torch; ADR 0016). Stages (top, independent siblings) import the bottom layer.
-layers = ["cankar.corpus | cankar.tokenizer | cankar.evals | cankar.train", "cankar.core | cankar.model"]
+layers = [
+    "cankar.corpus | cankar.tokenizer | cankar.evals | cankar.train | cankar.pairs",
+    "cankar.core | cankar.model",
+]
 
 [tool.mypy]
 files = ["cankar"]

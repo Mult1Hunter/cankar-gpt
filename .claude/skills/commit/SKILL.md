@@ -36,11 +36,16 @@ After the initial commit, `main` moves only via PR (CI: lint + secrets scan).
 Branch names: `<type>/<slug>`, e.g. `data/wikipedia-ingest` - branch names stay
 lowercase (git/URL convention); only commit types are uppercase.
 
-**Committing vs opening a PR (user rule, 2026-07):** commit freely on branches
-without asking. But **opening a PR and/or enabling auto-merge requires explicit
-user confirmation every time** - never `gh pr create` or `gh pr merge` on your
-own initiative. Do the work, commit it, run the design-review pass, then ASK
-before the PR.
+**Committing vs opening a PR (user rule, 2026-07; amended 2026-07-28):** commit
+freely on branches without asking. But **opening a PR and/or enabling auto-merge
+requires explicit user confirmation every time** - never `gh pr create` or
+`gh pr merge` on your own initiative. Do the work, commit it, run the
+design-review pass, then ASK before the PR.
+
+**A branch carries several features, not one** (ADR 0003 amendment): keep
+building and committing on the same branch across features; do not offer a PR
+after each one. Run `design-review` as each subsystem finishes, so review stays
+at feature scale even though merging happens at branch scale.
 
 **Thematic commit series (ADR 0009):** one topic per commit, dependency-ordered,
 each coherent on its own - branch commits LAND ON MAIN via merge commits, so no
