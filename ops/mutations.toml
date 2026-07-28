@@ -1,0 +1,178 @@
+# Mutation registry - the standing proof that load-bearing gates are not vacuous.
+#
+# Each entry breaks ONE behaviour and names the tests that must go red. Run with
+# `ops/mutate.sh --all`. A mutation that SURVIVES means the gate above it is
+# decorative; a mutation that cannot be APPLIED means this file has drifted from
+# the code and is equally a failure.
+#
+# Not every test needs an entry. These are the gates whose failure would be
+# silent and expensive - where a green suite would otherwise be mistaken for
+# evidence. Add one when a design review, or a bug, teaches you that a gate you
+# trusted was not wired to anything.
+
+# --- segmentation: boundaries and eligibility --------------------------------
+
+[[mutation]]
+# The corpus's dominant closing quote. Omitting it swallowed 2,429 sentence
+# boundaries and understated n_sentences on 951 passages, silently breaking the
+# 2-6 sentence contract - and the suite was green.
+file = "cankar/pairs/segment.py"
+old = '''_TERMINAL = re.compile(r"[.!?…]+[»«”“\"']*\s+")'''
+new = '''_TERMINAL = re.compile(r"[.!?…]+[»«”\"']*\s+")'''
+tests = "tests/pairs/test_segment.py"
+
+[[mutation]]
+# The capital-letter rule is the whole defence against cutting at Cankar's
+# mid-sentence ellipses - 28.5% of all "..." in the corpus.
+file = "cankar/pairs/segment.py"
+old = "        if not (nxt.isupper() or nxt in _OPENERS):"
+new = "        if False:"
+tests = "tests/pairs/test_segment.py"
+
+[[mutation]]
+# Dedup dropped 258 passages into no bucket while the docstring claimed nothing
+# is dropped silently. The fix landed with no gate; this is that gate.
+file = "cankar/pairs/segment.py"
+old = "                rejects[RejectReason.DUPLICATE] += 1"
+new = "                pass"
+tests = "tests/pairs/test_segment.py"
+
+[[mutation]]
+# Drama segmented as prose produced 1,223 passages with speaker labels glued
+# into the source text.
+file = "cankar/pairs/segment.py"
+old = "    if genre_of(genres, doc[\"title\"], author) not in PROSE_GENRES:"
+new = "        if False:"
+tests = "tests/pairs/test_segment.py"
+
+[[mutation]]
+# A pair built from a held-out work contaminates the Phase 6 evaluation
+# one-way and undetectably.
+file = "cankar/pairs/segment.py"
+old = "    if (doc[\"url\"] in excludes) is not (pair_set is PairSet.HOLDOUT):"
+new = "    if False:"
+tests = "tests/pairs/test_segment.py"
+
+# --- de-styling: the money step ----------------------------------------------
+
+[[mutation]]
+# Sonnet returns a leading `thinking` block on some responses; content[0]["text"]
+# raises there, which in a batch run is a crash or silent loss of paid output.
+file = "cankar/pairs/destyle.py"
+old = '''    return "\n".join(b["text"] for b in blocks if b.get("type") == "text").strip()'''
+new = '''    return blocks[0]["text"].strip() if blocks else ""'''
+tests = "tests/pairs/test_destyle.py"
+
+[[mutation]]
+# Thinking counts against max_tokens: one request in a 20-request validation
+# batch spent the entire budget thinking and returned no text at all.
+file = "cankar/pairs/destyle.py"
+old = '''            "thinking": {"type": "disabled"},'''
+new = ""
+tests = "tests/pairs/test_destyle.py"
+
+[[mutation]]
+# Truncated output is fluent, plausible, and stops mid-sentence - the exact
+# corrupted pair this stage exists to avoid.
+file = "cankar/pairs/destyle.py"
+old = '    if message.get("stop_reason") == "max_tokens":'
+new = "    if False:"
+tests = "tests/pairs/test_destyle.py"
+
+[[mutation]]
+# 84 responses carried Cyrillic homoglyphs inside Slovene words - visually
+# identical, invisible to every length and diacritic check.
+file = "cankar/pairs/destyle.py"
+old = "    if foreign_letters(text) - foreign_letters(passage.text):"
+new = "    if False:"
+tests = "tests/pairs/test_destyle.py"
+
+[[mutation]]
+# already_done must read the RAW log, not the parsed pairs: a rejected response
+# was still billed, and keying off pairs.jsonl would buy it twice.
+file = "cankar/pairs/destyle.py"
+old = '''    return frozenset(r["custom_id"] for r in iter_raw(raw_path) if "custom_id" in r)'''
+new = "    return frozenset()"
+tests = "tests/pairs/test_destyle.py"
+
+[[mutation]]
+# Batch results return in arbitrary order; resolving per record rather than per
+# passage emitted duplicate pairs and counted a retry success as a loss.
+file = "cankar/pairs/destyle.py"
+old = "    rejected = [r for pid, r in failures.items() if pid not in pairs]"
+new = "    rejected = list(failures.values())"
+tests = "tests/pairs/test_destyle.py"
+
+[[mutation]]
+# The receipt ledger lost a 10,000-request batch id when a `git checkout --
+# registry/` reverted a tracked file being used as live runtime state.
+file = "cankar/pairs/destyle.py"
+old = '''    with path.open("a", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps'''
+new = '''    with path.open("w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps'''
+tests = "tests/pairs/test_destyle.py"
+
+[[mutation]]
+# The prompt is 49% of all tokens. Scoring it trains a 26M model to generate
+# PLAIN Slovene - not the task, and capacity it cannot spare.
+file = "cankar/train/sft.py"
+old = "        y = [IGNORE_INDEX] * (e.n_prompt - 1) + e.tokens[e.n_prompt :]"
+new = "        y = e.tokens[1:]"
+tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# A target that never contains the stop token gives the model no example of
+# stopping, and generations run past the passage.
+file = "cankar/train/sft.py"
+old = "    target = [*enc.encode_ordinary(cankar), sp[ASSISTANT_END]]"
+new = "    target = [*enc.encode_ordinary(cankar)]"
+tests = "tests/train/test_sft.py"
+
+# --- claim gates: the category that caught the most --------------------------
+
+[[mutation]]
+# Published excerpts must match the frozen data. This gate caught its own author
+# twice: once trimming a quote to read better, once citing a corrupted pair.
+file = "docs/pairs-samples.md"
+old = "sit na vekomaj"
+new = "sit za vedno"
+tests = "tests/pairs/test_sample_claims.py"
+
+[[mutation]]
+# STAGES and the import-linter contract are two hand-maintained copies of one
+# set. They drifted the moment a stage was added, and cankar.pairs shipped with
+# no layering enforcement at all.
+file = "pyproject.toml"
+old = " | cankar.pairs"
+new = ""
+tests = "tests/structure/test_layout.py"
+
+[[mutation]]
+# 190 of 9,950 generated passages broke Slovene s/z assimilation against 4 in the
+# untouched public-domain side - a 48x enrichment, so a generator artifact rather
+# than a feature of the language (audit 2026-07-28).
+file = "cankar/pairs/destyle.py"
+old = "    if misassimilated(text) and not misassimilated(passage.text):"
+new = "    if False:"
+tests = "tests/pairs/test_destyle.py"
+
+[[mutation]]
+# The worst pair in the corpus: given a pure-dialogue passage the model narrated
+# what happened NEXT instead of restyling it. Fluent, plausible, and it teaches
+# the styler to invent continuations.
+file = "cankar/pairs/destyle.py"
+old = "    if source_similarity(passage.text, text) < MIN_SOURCE_SIMILARITY:"
+new = "    if False:"
+tests = "tests/pairs/test_destyle.py"
+
+[[mutation]]
+# difflib's autojunk discards any character in over 1% of a sequence - on prose
+# that is every vowel and the space. It collapsed every ratio toward zero and
+# ranked perfect de-stylings as the corpus's most divergent pairs.
+file = "cankar/pairs/destyle.py"
+old = "    return difflib.SequenceMatcher(None, source, output, autojunk=False).ratio()"
+new = "    return difflib.SequenceMatcher(None, source, output).ratio()"
+tests = "tests/pairs/test_destyle.py"

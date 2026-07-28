@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "drafts_version": 1,
+  "model": "claude-sonnet-5",
+  "corpus_sha256": "d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b",
+  "topics_sha256": "7f758745a12706a2349ce1222a16cf4f05487604e122b3f9dcbed5e0c77df1df",
+  "register_sha256": "cec36eb07e77c6d99076ad98ce176c0c097827f6ecdc70ee274b4547be6d985d",
+  "drafts_sha256": "9597cfd5781b7afe365846fbb0aec01129ade111c2c7eb2e9e2975850a7991d7",
+  "batch_ids": [
+    "msgbatch_01Ac5si5ob2k2jtvk1iZhMQW"
+  ],
+  "git_sha": "0d2c53d-dirty",
+  "created_at": "2026-07-28T14:06:53+00:00",
+  "n_register": 35,
+  "n_wild": 15
+}

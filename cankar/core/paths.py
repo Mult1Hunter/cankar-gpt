@@ -196,6 +196,22 @@ def rejected_pairs(pair_set: PairSet) -> Path:
     return repo_root() / "data" / "pairs" / f"{pair_set.value}-rejected.jsonl"
 
 
+def draft_topics() -> Path:
+    """Human-curated eval topics, committed BEFORE generation so reselection
+    toward flattering output shows up in the diff."""
+    return repo_root() / "configs" / "pairs" / "draft-topics.toml"
+
+
+def drafts_shard() -> Path:
+    """Frozen Phase 6 eval inputs. Committed - 50 short passages, and an eval set
+    nobody can check against is not an eval set."""
+    return repo_root() / "registry" / "datasets" / "pairs" / "drafts.jsonl"
+
+
+def drafts_manifest() -> Path:
+    return dataset_manifest("pairs", "drafts")
+
+
 def pairs_report(pair_set: PairSet) -> Path:
     """Snapshot report (computed from gitignored data/) - see reports README."""
     return repo_root() / "registry" / "reports" / f"{pair_set.value}-pairs.md"

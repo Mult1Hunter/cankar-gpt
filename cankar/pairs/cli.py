@@ -30,6 +30,9 @@ from cankar.core.paths import (
     batch_receipts,
     dataset_card,
     destyle_raw,
+    draft_topics,
+    drafts_manifest,
+    drafts_shard,
     holdout_manifest,
     merged_shard,
     pairs_manifest,
@@ -44,7 +47,7 @@ from cankar.core.paths import (
 )
 from cankar.core.register import REGISTER_SHA256
 from cankar.core.works import load_work_genres
-from cankar.pairs import destyle, publish, segment
+from cankar.pairs import destyle, drafts, publish, segment
 
 log = logging.getLogger("cankar.pairs")
 
@@ -323,6 +326,44 @@ def _publish(args: argparse.Namespace) -> int:
     return 0
 
 
+def _drafts(args: argparse.Namespace) -> int:
+    topics = drafts.load_topics(draft_topics())
+    wild = drafts.sample_wild(merged_shard())
+
+    client = _client()
+    requests = [drafts.build_request(t, i, args.model) for i, t in enumerate(topics)]
+    batch = client.with_options(max_retries=0).messages.batches.create(requests=requests)
+    log.info("submitted draft batch %s (%d topics)", batch.id, len(requests))
+    delay = POLL_START_SECONDS
+    while True:
+        b = client.messages.batches.retrieve(batch.id)
+        if b.processing_status == "ended":
+            break
+        log.info("draft batch: %s, waiting %ds", b.processing_status, delay)
+        time.sleep(delay)
+        delay = min(delay * 2, POLL_MAX_SECONDS)
+    records = [json.loads(r.model_dump_json()) for r in client.messages.batches.results(batch.id)]
+
+    register_drafts = drafts.parse_register_drafts(records, topics)
+    out = drafts.write_drafts(drafts_shard(), register_drafts + wild)
+    manifest = drafts.DraftsManifest(
+        drafts_version=drafts.DRAFTS_VERSION,
+        model=args.model,
+        corpus_sha256=sha256_of(merged_shard()),
+        topics_sha256=sha256_of(draft_topics()),
+        register_sha256=REGISTER_SHA256,
+        drafts_sha256=sha256_of(out),
+        batch_ids=[batch.id],
+        git_sha=git_sha(),
+        created_at=utc_now_iso(),
+        n_register=len(register_drafts),
+        n_wild=len(wild),
+    )
+    write_manifest(manifest, drafts_manifest())
+    log.info("%d register + %d wild drafts -> %s", len(register_drafts), len(wild), out)
+    return 0
+
+
 def register(parser: argparse.ArgumentParser) -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -354,6 +395,10 @@ def register(parser: argparse.ArgumentParser) -> None:
         help="re-send passages whose paid response was rejected (RE-BILLS them)",
     )
     d.set_defaults(func=_destyle)
+
+    dr = sub.add_parser("drafts", help="generate the Phase 6 fresh-draft eval set")
+    dr.add_argument("--model", default=destyle.DEFAULT_MODEL, help="model id")
+    dr.set_defaults(func=_drafts)
 
     p = sub.add_parser("publish", help="upload the pair dataset to the HF Hub")
     p.add_argument("--repo", default=publish.DEFAULT_REPO, help="HF dataset repo id")

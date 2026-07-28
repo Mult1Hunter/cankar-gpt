@@ -38,3 +38,7 @@ notes
 .idea/
 .vscode/
 .serena/
+
+# session review artifacts (not repo content)
+DRAFTS-REVIEW*.md
+PAIRS-AUDIT*.md
