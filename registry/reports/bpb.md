@@ -2,8 +2,9 @@
 
 # Held-out BPB - canonical checkpoints (ADR 0016)
 
-Corpus sha256 `d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b`, holdout sha256 `07ccca96a4fe339d50a9da9d38f71b4bcec98962e601d6460b633edca96331a2`.
-Scored on `cuda` at 2026-07-27T18:13:19+00:00 (git `a38c2a6`).
+Corpus sha256 `d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b`.
+Held-out set sha256 `07ccca96a4fe339d50a9da9d38f71b4bcec98962e601d6460b633edca96331a2` (registry/evals/holdout.json).
+Scored on `cuda` at 2026-07-27T18:28:34+00:00 (git `9649d0d`).
 
 Bits per byte over the frozen held-out Cankar set (ADR 0013), every held-out
 token scored exactly once. Lower is better. **These are the numbers published
