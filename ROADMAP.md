@@ -248,7 +248,16 @@ Do not build serving or the Laravel orchestrator before the styler exists.
   exists yet, so "reused verbatim" is not true until (a) and (b) both import
   `PLAIN_REGISTER`)*
 - [ ] QA: spot-check 50-100 pairs; auto-filter bottom 5-10% (length-ratio + LLM meaning score)
-- [ ] Publish dataset to HF Hub (`cankar-parallel`) - target side PD, source side own output; standalone contribution
+- [x] Publish dataset to HF Hub (`cankar-parallel`) - target side PD, source side own
+      output; standalone contribution. `cankar pairs publish` -> pairs + raw responses +
+      manifest + a card generated from the manifests so it cannot drift. **PRIVATE**
+      until the Wikivir-transcription licensing question is answered - that is a
+      maintainer decision, and private->public is the easy direction
+- [x] Content capture (added in-flight): `docs/pairs-samples.md` shows what "Cankar
+      style" consists of via real before/after pairs, gated by
+      `tests/pairs/test_sample_claims.py` against committed excerpts in
+      `registry/datasets/pairs/samples.jsonl`. Blog examples cannot be quietly
+      prettified - the gate caught its own author doing exactly that on first run
 
 ## Phase 6 - Style-transfer SFT (hours)
 
