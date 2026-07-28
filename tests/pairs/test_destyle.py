@@ -14,6 +14,7 @@ from pathlib import Path
 from cankar.pairs.destyle import (
     MAX_TOKENS,
     MIN_CARONS_FOR_RATIO,
+    MIN_SOURCE_SIMILARITY,
     SYSTEM_PROMPT,
     Anomaly,
     BatchReceipt,
@@ -25,10 +26,13 @@ from cankar.pairs.destyle import (
     caron_retention,
     classify_response,
     extract_text,
+    foreign_letters,
     load_receipts,
+    misassimilated,
     pending_receipts,
     retryable,
     select_passages,
+    source_similarity,
     unrecorded_batches,
 )
 from cankar.pairs.segment import Passage
@@ -346,3 +350,97 @@ def test_a_passage_that_never_succeeded_is_still_rejected(tmp_path: Path) -> Non
     append_raw(raw, [_response(p.passage_id, [], stop="max_tokens")] * 2)
     pairs, rejected = build_pairs([p], raw, "claude-sonnet-5")
     assert pairs == [] and len(rejected) == 1
+
+
+def test_foreign_script_in_the_output_is_rejected() -> None:
+    """84 real responses carried Cyrillic homoglyphs inside Slovene words -
+    `vesело`, `neumnе` - visually identical, invisible to every length and
+    diacritic check, and a token the Slovene tokenizer has never seen. This
+    gate had no test at all until the mutation registry exposed it."""
+    cyrillic = "Vstal je in odsel v vesело mesto."  # 'e','о' are Cyrillic here
+    assert foreign_letters(cyrillic)
+    r = _response("x", [{"type": "text", "text": cyrillic}])
+    assert classify_response(_passage(text=SRC), r)[1] is Anomaly.FOREIGN_SCRIPT
+
+
+def test_foreign_letters_present_in_the_source_are_not_corruption() -> None:
+    """Diffed against the source: a Greek letter Cankar himself wrote is not
+    the model corrupting anything."""
+    src = "Pisal je o Ω in o svetu."
+    out = "Pisal je o Ω in o svetu, preprosto."
+    assert foreign_letters(out) - foreign_letters(src) == set()
+    r = _response("x", [{"type": "text", "text": out}])
+    assert classify_response(_passage(text=src), r)[1] is None
+
+
+def test_the_raw_log_is_append_only(tmp_path: Path) -> None:
+    """The raw log is the artifact the money bought. If it truncated, a resumed
+    run would re-bill everything already paid for - `already_done` reads it.
+    Untested until the mutation registry caught an ambiguous pattern hitting
+    this function and surviving (2026-07-28)."""
+    raw = tmp_path / "raw.jsonl"
+    append_raw(raw, [_ok("aaaa000000000000")])
+    append_raw(raw, [_ok("bbbb000000000000")])
+    assert len(raw.read_text().splitlines()) == 2
+    assert already_done(raw) == frozenset({"aaaa000000000000", "bbbb000000000000"})
+
+
+def test_sz_assimilation_error_is_rejected() -> None:
+    """Slovene assimilates the preposition: `z` before a vowel or voiced sound,
+    `s` before a voiceless one. The generated side broke this in 190 of 9,950
+    passages against 4 in the untouched public-domain side - a 48x enrichment,
+    so it is a generator artifact, not a feature of the language."""
+    src = "Gledal ga je z veseljem in dolgo molčal, ne da bi izrekel eno samo besedo."
+    bad = "Gledal ga je s občudovanjem in dolgo molčal, ne da bi rekel besedo."
+    assert misassimilated(bad) == ["s o"] and misassimilated(src) == []
+    r = _response("x", [{"type": "text", "text": bad}])
+    assert classify_response(_passage(text=src), r)[1] is Anomaly.MISASSIMILATED
+
+
+def test_sz_usage_cankar_himself_wrote_is_not_the_models_error() -> None:
+    """Diffed against the source, like every other content gate here."""
+    src = "Gledal ga je s občudovanjem in dolgo molčal, brez ene same besede."
+    out = "Gledal ga je s občudovanjem in molčal, ne da bi rekel eno besedo."
+    assert (
+        classify_response(_passage(text=src), _response("x", [{"type": "text", "text": out}]))[1]
+        is None
+    )
+
+
+def test_correct_assimilation_is_not_flagged() -> None:
+    assert misassimilated("Šel je z avtom s prijateljem in z ženo.") == []
+
+
+def test_a_continuation_instead_of_a_rewrite_is_rejected() -> None:
+    """The worst pair in the corpus: given a pure-dialogue passage the model
+    narrated what happened NEXT instead of restyling it. Fluent, plausible, and
+    it teaches the styler to invent continuations. Similarity 0.316 - the
+    minimum across all 9,950 - against a median of 0.85."""
+    src = (
+        "»Kaj se ti sanja, Aleš?« se je zasmejal Stržinar, krčmar, "
+        "in je postavil polno steklenico predenj."
+    )
+    cont = (
+        "Aleš se ni takoj odzval, ampak je nekaj časa strmel predenj, "
+        "kot da bi razmišljal o čem drugem."
+    )
+    assert source_similarity(src, cont) < MIN_SOURCE_SIMILARITY
+    r = _response("x", [{"type": "text", "text": cont}])
+    assert classify_response(_passage(text=src), r)[1] is Anomaly.DIVERGENT
+
+
+def test_an_ordinary_heavy_rewrite_is_not_divergent() -> None:
+    """The floor must not police legitimate restyling - p1 of the real
+    distribution is 0.65, well clear of it."""
+    assert source_similarity(SRC, GOOD) >= MIN_SOURCE_SIMILARITY
+    assert classify_response(_passage(text=SRC), _ok(text=GOOD))[1] is None
+
+
+def test_similarity_disables_difflib_autojunk() -> None:
+    """autojunk discards any character in over 1% of a sequence - on prose that
+    is every vowel and the space, collapsing every ratio toward zero. It ranked
+    perfect de-stylings as the most divergent pairs in the corpus."""
+    import difflib
+
+    a, b = SRC * 4, GOOD * 4
+    assert source_similarity(a, b) > difflib.SequenceMatcher(None, a, b).ratio() + 0.3

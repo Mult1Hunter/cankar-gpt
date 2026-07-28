@@ -29,8 +29,10 @@ training data invisibly; that is why this module pins a strong one.
 
 from __future__ import annotations
 
+import difflib
 import json
 import logging
+import re
 import unicodedata
 from collections.abc import Iterator
 from enum import StrEnum
@@ -148,6 +150,8 @@ class Anomaly(StrEnum):
     LOST_DIACRITICS = "lost_diacritics"  # Slovene carons dropped wholesale
     FOREIGN_SCRIPT = "foreign_script"  # non-Latin letter inside Slovene words
     IDENTITY = "identity"  # output byte-identical to the source
+    DIVERGENT = "divergent"  # shares too little content with its source
+    MISASSIMILATED = "misassimilated"  # s/z preposition against the following sound
 
 
 # Calibrated on the 100-response pilot: every good rewrite landed at a length
@@ -189,6 +193,41 @@ MIN_CARONS_FOR_RATIO = 8
 # Haiku pilot is the reason to believe a weaker one would trip it), not a live
 # filter. It is proven to fire by test, not by production traffic.
 MIN_CARON_RETENTION = 0.1
+
+
+# Slovene assimilates the preposition to the following sound: `z` before a vowel
+# or voiced consonant, `s` before a voiceless one. Measured over the full run,
+# the generated side breaks this in 190 of 9,950 passages (1.9%) against 4 in
+# the untouched public-domain Cankar side (0.04%) - a 48x enrichment, so it is a
+# generator artifact, not a feature of the language (audit 2026-07-28).
+_VOICELESS = frozenset("ptkfshcčšx")
+_VOICED = frozenset("bdgzžvmnljraeiouáéíóúaeiou")
+_SZ = re.compile(r"\b([sz])\s+([^\W\d_])", re.UNICODE)
+
+# A rewrite shares most of its source's characters. Measured with autojunk
+# DISABLED - difflib's default discards any character appearing in over 1% of a
+# sequence, which on prose means every vowel and space, collapsing every ratio
+# toward zero and ranking pure noise. Real distribution: median 0.85, p1 0.65,
+# min 0.32. The floor sits below p1 and above that minimum on purpose: it exists
+# to catch the model CONTINUING the story instead of rewriting it, which is what
+# the single worst pair turned out to be, not to police heavy rewriting.
+MIN_SOURCE_SIMILARITY = 0.40
+
+
+def misassimilated(text: str) -> list[str]:
+    """s/z preposition sites that disagree with the following sound."""
+    out: list[str] = []
+    for m in _SZ.finditer(text):
+        prep, nxt = m.group(1).lower(), m.group(2).lower()
+        if (prep == "s" and nxt in _VOICED) or (prep == "z" and nxt in _VOICELESS):
+            out.append(m.group(0))
+    return out
+
+
+def source_similarity(source: str, output: str) -> float:
+    """Character overlap with the source. autojunk=False is load-bearing - see
+    MIN_SOURCE_SIMILARITY."""
+    return difflib.SequenceMatcher(None, source, output, autojunk=False).ratio()
 
 
 class Pair(BaseModel):
@@ -300,7 +339,17 @@ def classify_response(passage: Passage, result: dict[str, Any]) -> tuple[str, An
         return text, Anomaly.IDENTITY
     ratio = len(text) / len(passage.text)
     if not MIN_LENGTH_RATIO <= ratio <= MAX_LENGTH_RATIO:
+        # Checked before divergence: a runaway is also low-similarity, and the
+        # length ratio is the cheaper and more specific diagnosis.
         return text, Anomaly.LENGTH_OUTLIER
+    if misassimilated(text) and not misassimilated(passage.text):
+        # Diffed against the source: Cankar's own usage is the reference, so a
+        # site he wrote that way is not the model's error.
+        return text, Anomaly.MISASSIMILATED
+    if source_similarity(passage.text, text) < MIN_SOURCE_SIMILARITY:
+        # The model narrated what happened NEXT instead of restyling the passage.
+        # Fluent, plausible, and it teaches the styler to invent continuations.
+        return text, Anomaly.DIVERGENT
     source_carons = sum(ch in _CARONS for ch in passage.text)
     if (
         source_carons >= MIN_CARONS_FOR_RATIO
