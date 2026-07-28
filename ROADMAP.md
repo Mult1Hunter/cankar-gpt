@@ -233,7 +233,14 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       (design-review 2026-07-28). Surplus is what lets the segmenter reject every
       ambiguous candidate - including works whose ledger row records no genre -
       instead of parsing it
-- [ ] Claude Batch API de-styling -> plain modern Slovene; pair `(plain -> original Cankar)`
+- [x] Claude Batch API de-styling -> plain modern Slovene; pair `(plain -> original Cankar)`:
+      `cankar pairs destyle` -> **10,043 pairs** from 10,049 responses on
+      `claude-sonnet-5` (6.4M in / 1.7M out tokens, batch-priced). Model chosen by
+      a 50-passage pilot, not preference: Haiku 4.5 produced broken Slovene
+      grammar that the frozen style classifier scored identically (0.693 vs
+      0.690) - the metric could not see the only thing that mattered. Resumable
+      by construction: content-addressed `custom_id`, raw responses persisted
+      before parsing, batch receipts committed at submit time
 - [ ] **Distribution-shift fix (A1):** ONE shared "plain Slovene register" prompt, reused verbatim for
   (a) de-styling in training data generation and (b) draft-writing at inference. Non-negotiable design invariant.
   *(the definition + its one-home gate landed early: `cankar/core/register.py`,
