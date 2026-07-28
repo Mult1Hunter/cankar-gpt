@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "destyler_version": 1,
+  "model": "claude-sonnet-5",
+  "corpus_sha256": "d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b",
+  "passages_sha256": "e1cad3a2643782f9a1e523c883db7d9ce9f4a0fb82142472d6f4c2f6cb3c7438",
+  "register_sha256": "cec36eb07e77c6d99076ad98ce176c0c097827f6ecdc70ee274b4547be6d985d",
+  "pairs_sha256": "fe09955f866fd1cfeceaf6113f8e166ce36b6368c2cd958c2c4f459767cb0c86",
+  "batch_ids": [
+    "msgbatch_01SKCJtztp6R6Qh52dYp77JH",
+    "msgbatch_01HNB8ZdNrf9MogWzy7PABAD"
+  ],
+  "git_sha": "f2a60f8-dirty",
+  "created_at": "2026-07-28T10:15:30+00:00",
+  "lib_versions": {
+    "anthropic_version": "0.120.0"
+  },
+  "n_requested": 50,
+  "n_pairs": 49,
+  "n_rejected": 0,
+  "reject_counts": {},
+  "in_tokens": 32045,
+  "out_tokens": 8819
+}
