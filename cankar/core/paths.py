@@ -164,6 +164,18 @@ def pairs_samples() -> Path:
     return repo_root() / "registry" / "datasets" / "pairs" / "samples.jsonl"
 
 
+def dataset_card() -> Path:
+    """The card published to the Hub. In registry/, not gitignored data/: what
+    gets published must be reviewable in git like any other committed claim."""
+    return repo_root() / "registry" / "datasets" / "pairs" / "DATASET_CARD.md"
+
+
+def rejected_pairs() -> Path:
+    """Responses paid for but unusable. Kept as evidence about the model and the
+    prompt - and never re-sent, since `already_done` reads the raw log."""
+    return repo_root() / "data" / "pairs" / "rejected.jsonl"
+
+
 def pairs_report() -> Path:
     """Snapshot report (computed from gitignored data/) - see reports README."""
     return repo_root() / "registry" / "reports" / "pairs.md"

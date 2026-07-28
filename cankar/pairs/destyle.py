@@ -63,42 +63,55 @@ MAX_TOKENS = 1024
 # Anthropic's per-batch request ceiling.
 MAX_BATCH_REQUESTS = 100_000
 
-# Measured with count_tokens against the real prompt on 2026-07-28. Recorded
-# because it is a cost driver, not a curiosity: at 323 it sits below EVERY
-# prompt-caching floor (1024 for the Sonnet/Haiku class, 512 for Opus 5), so
-# caching never engages and this is paid in full on every single request -
-# roughly 72% of the input bill at these passage sizes. Padding the prompt to
-# clear the floor was considered and rejected: inflating a load-bearing design
-# invariant with filler to game a threshold is indefensible.
-SYSTEM_PROMPT_TOKENS = 323
+# Both constants are REGRESSED ON THE REAL BILL, not estimated:
+#   in_tokens = 0.4796 * source_chars + 482.5   (10,043 billed requests, 2026-07-28)
+#
+# The first version measured `count_tokens` against Haiku and applied the result
+# to a Sonnet run, underestimating the input bill by 31%. The evidence was
+# already in hand and went unused: the pilot recorded Sonnet consuming 628 input
+# tokens where Haiku consumed 446 for identical text. Tokenizer density is
+# per-model - never carry a measurement across model families.
+CHARS_PER_TOKEN = 2.09
 
-# Slovene tokenizes far denser than English (~4.0). Measured over 40 real
-# passages on 2026-07-28: every Slovene character costs ~47% more than the
-# English intuition suggests.
-CHARS_PER_TOKEN = 2.72
+# Fixed input per request: the system prompt plus message framing. Sits below
+# every prompt-caching floor (1024 for the Sonnet/Haiku class, 512 for Opus 5),
+# so caching never engages and this is paid in full on EVERY request - about 75%
+# of the input bill at these passage sizes. Padding the prompt to clear the
+# floor was considered and rejected: inflating a load-bearing design invariant
+# with filler to game a threshold is indefensible.
+FIXED_INPUT_TOKENS = 483
+
+# Output tracks source length closely (out_tokens = 0.4807 * plain_chars + 6.3,
+# and a de-styled passage runs at ~0.99x the source). Estimated because output
+# is the MAJORITY of the bill at Sonnet's 5x output price - a dry run that
+# reports only input cannot answer the question it exists to answer.
+OUTPUT_CHARS_PER_TOKEN = 2.08
 
 
 class CostEstimate(BaseModel):
-    """What a run would cost, in tokens. Prices change and are not hardcoded -
-    this reports volume, the operator applies the current price list."""
+    """What a run would cost, in TOKENS. Prices change and are deliberately not
+    hardcoded - this reports volume, the operator applies the current price
+    list. Output is included because at a 5x output multiplier it dominates."""
 
     n_requests: int
     passage_chars: int
     passage_tokens: int
-    system_tokens: int
+    fixed_tokens: int
     input_tokens: int
+    output_tokens: int
 
 
 def estimate_cost(passages: list[Passage]) -> CostEstimate:
     chars = sum(len(p.text) for p in passages)
     passage_tokens = int(chars / CHARS_PER_TOKEN)
-    system_tokens = SYSTEM_PROMPT_TOKENS * len(passages)
+    fixed_tokens = FIXED_INPUT_TOKENS * len(passages)
     return CostEstimate(
         n_requests=len(passages),
         passage_chars=chars,
         passage_tokens=passage_tokens,
-        system_tokens=system_tokens,
-        input_tokens=passage_tokens + system_tokens,
+        fixed_tokens=fixed_tokens,
+        input_tokens=passage_tokens + fixed_tokens,
+        output_tokens=int(chars / OUTPUT_CHARS_PER_TOKEN),
     )
 
 
@@ -132,6 +145,8 @@ class Anomaly(StrEnum):
     NOT_A_REWRITE = "not_a_rewrite"  # commentary/preamble instead of the passage
     LENGTH_OUTLIER = "length_outlier"  # far shorter/longer than the source
     LOST_DIACRITICS = "lost_diacritics"  # Slovene carons dropped wholesale
+    FOREIGN_SCRIPT = "foreign_script"  # non-Latin letter inside Slovene words
+    IDENTITY = "identity"  # output byte-identical to the source
 
 
 # Calibrated on the 100-response pilot: every good rewrite landed at a length
@@ -222,6 +237,20 @@ def build_request(passage: Passage, model: str) -> dict[str, Any]:
     }
 
 
+def foreign_letters(text: str) -> set[str]:
+    """Alphabetic characters outside the Latin script.
+
+    Catches homoglyph corruption: the model occasionally emits a Cyrillic `о`,
+    `е` or `а` inside a Slovene word - `vesело`, `zavesо`, `neumnе` - which is
+    visually identical, survives every length and diacritic check, and lands in
+    training data as a token the Slovene tokenizer has never seen. 83 accepted
+    pairs carried one before this existed, plus a Tamil codepoint in a rejected
+    response that only the length ratio caught, by luck (design-review
+    2026-07-28).
+    """
+    return {ch for ch in text if ch.isalpha() and "LATIN" not in unicodedata.name(ch, "")}
+
+
 def caron_retention(source: str, output: str) -> float:
     """Fraction of the source's caron count surviving in the output. 1.0 when
     the source has none, so caron-free passages are never penalised."""
@@ -260,6 +289,14 @@ def classify_response(passage: Passage, result: dict[str, Any]) -> tuple[str, An
         return text, Anomaly.TRUNCATED
     if text.startswith(_PREAMBLE_MARKERS):
         return text, Anomaly.NOT_A_REWRITE
+    if foreign_letters(text) - foreign_letters(passage.text):
+        # Diffed against the source: a Greek letter Cankar himself wrote is not
+        # corruption, one the rewrite introduced is.
+        return text, Anomaly.FOREIGN_SCRIPT
+    if text == passage.text:
+        # Full-length identity. `min_chars` exists because a near-identity pair
+        # teaches nothing; this is that, at any length.
+        return text, Anomaly.IDENTITY
     ratio = len(text) / len(passage.text)
     if not MIN_LENGTH_RATIO <= ratio <= MAX_LENGTH_RATIO:
         return text, Anomaly.LENGTH_OUTLIER
@@ -389,6 +426,18 @@ def write_pairs(out: Path, pairs: list[Pair]) -> Path:
     return out
 
 
+def write_rejected(out: Path, rejected: list[Rejected]) -> Path:
+    """Persist the quarantine. `Rejected` claimed to be "kept, not discarded"
+    while the CLI reduced it to counts and threw the text away, so the evidence
+    that would explain a filter change did not survive the run that produced it
+    (design-review 2026-07-28)."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", encoding="utf-8") as f:
+        for r in rejected:
+            f.write(r.model_dump_json() + "\n")
+    return out
+
+
 class PairsManifest(BaseModel):
     """Committed provenance for the generated pairs (ADR 0003 shape).
 
@@ -484,17 +533,45 @@ class BatchReceipt(BaseModel):
 
 
 def load_receipts(path: Path) -> list[BatchReceipt]:
+    """Fold the append-only event log into one record per batch, last write wins.
+
+    Order is preserved by first appearance so the ledger reads chronologically.
+    """
     if not path.exists():
         return []
-    return [BatchReceipt.model_validate(d) for d in iter_jsonl_docs(path)]
+    folded: dict[str, BatchReceipt] = {}
+    for row in iter_jsonl_docs(path):
+        r = BatchReceipt.model_validate(row)
+        folded[r.batch_id] = r
+    return list(folded.values())
 
 
-def write_receipts(path: Path, receipts: list[BatchReceipt]) -> Path:
+def append_receipt(path: Path, receipt: BatchReceipt) -> Path:
+    """APPEND one event. Never rewrites.
+
+    The previous version truncated and rewrote from an in-memory list, which lost
+    the receipt for a 10,000-request batch when an unrelated `git checkout --
+    registry/` reverted this tracked file to its committed state mid-run
+    (2026-07-28). The raw-response log next door was append-only and survived;
+    the ledger that is the ONLY route back to paid results was not. One module,
+    two ledgers, and the weaker discipline was on the file that mattered more.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        for r in receipts:
-            f.write(r.model_dump_json() + "\n")
+    with path.open("a", encoding="utf-8") as f:
+        f.write(receipt.model_dump_json() + "\n")
     return path
+
+
+def unrecorded_batches(api_batch_ids: list[str], receipts: list[BatchReceipt]) -> list[str]:
+    """Batch ids the API knows about and this repo does not.
+
+    Submitting while one exists risks paying twice for the same passages: the
+    SDK retries a failed POST with no idempotency key, so a create() whose
+    response was lost can leave a billed batch nobody has a receipt for, whose
+    responses `already_done` therefore cannot subtract.
+    """
+    known = {r.batch_id for r in receipts}
+    return [b for b in api_batch_ids if b not in known]
 
 
 def pending_receipts(receipts: list[BatchReceipt]) -> list[BatchReceipt]:

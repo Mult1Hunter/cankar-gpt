@@ -27,6 +27,7 @@ from cankar.core.manifest import (
 )
 from cankar.core.paths import (
     batch_receipts,
+    dataset_card,
     destyle_raw,
     holdout_manifest,
     merged_shard,
@@ -37,6 +38,7 @@ from cankar.core.paths import (
     passages_manifest,
     passages_report,
     passages_shard,
+    rejected_pairs,
     works_registry,
 )
 from cankar.core.register import REGISTER_SHA256
@@ -128,15 +130,50 @@ def _destyle(args: argparse.Namespace) -> int:
     passages = destyle.load_passages(passages_shard())
     receipts = destyle.load_receipts(batch_receipts())
 
+    # Costing must not require a credential: --dry-run submits nothing.
+    if args.dry_run:
+        done = destyle.already_done(destyle_raw())
+        todo = destyle.select_passages(passages, args.limit, done)
+        est = destyle.estimate_cost(todo)
+        if not todo:
+            log.info("DRY RUN: nothing left to submit (%d already paid for)", len(done))
+            return 0
+        log.info(
+            "DRY RUN, nothing submitted: %d requests, ~%d input + ~%d output tokens. "
+            "Fixed input is %d tokens/request (%.0f%% of input) - below the caching floor, "
+            "so it is paid every time. Output usually dominates the bill at a 5x "
+            "multiplier. Batch pricing halves both; apply the current price list.",
+            est.n_requests,
+            est.input_tokens,
+            est.output_tokens,
+            destyle.FIXED_INPUT_TOKENS,
+            100 * est.fixed_tokens / est.input_tokens,
+        )
+        return 0
+
     if not args.parse_only:
         client = _client()
-        # Drain first: a run interrupted between submit and download must resume
+        # Reconcile against the API BEFORE anything else. The SDK retries a
+        # failed create() with no idempotency key, so a lost response can leave
+        # a billed batch this repo has no receipt for - and whose responses
+        # `already_done` therefore cannot subtract. Refuse rather than risk it.
+        api_ids = [b.id for b in client.messages.batches.list(limit=100)]
+        orphans = destyle.unrecorded_batches(api_ids, receipts)
+        if orphans:
+            raise CankarError(
+                f"batches exist with no receipt: {orphans}. They were paid for. Add them to "
+                f"{batch_receipts()} (id, model, n_requests) and re-run, so their responses "
+                "are drained instead of bought a second time."
+            )
+
+        # Drain next: a run interrupted between submit and download must resume
         # the paid batch, never submit a second one for the same passages.
         for receipt in destyle.pending_receipts(receipts):
             log.info("resuming un-downloaded batch %s", receipt.batch_id)
             _drain(client, receipt)
-            receipt.downloaded = True
-            destyle.write_receipts(batch_receipts(), receipts)
+            destyle.append_receipt(
+                batch_receipts(), receipt.model_copy(update={"downloaded": True})
+            )
 
         done = destyle.already_done(destyle_raw())
         if args.retry_rejected:
@@ -151,42 +188,32 @@ def _destyle(args: argparse.Namespace) -> int:
             "%d passages, %d already paid for, %d to submit", len(passages), len(done), len(todo)
         )
 
-        if args.dry_run:
-            est = destyle.estimate_cost(todo)
-            log.info(
-                "DRY RUN, nothing submitted: %d requests, ~%d input tokens "
-                "(%d passage + %d system). The system prompt is %d tokens and repeats on "
-                "every request - below the caching floor, so it is %.0f%% of the input bill. "
-                "Batch pricing halves it; apply the current price list.",
-                est.n_requests,
-                est.input_tokens,
-                est.passage_tokens,
-                est.system_tokens,
-                destyle.SYSTEM_PROMPT_TOKENS,
-                100 * est.system_tokens / est.input_tokens,
-            )
-            return 0
-
         if todo:
             requests = [destyle.build_request(p, args.model) for p in todo]
-            batch = client.messages.batches.create(requests=requests)
+            # max_retries=0: create() is NOT idempotent (the SDK sends no
+            # idempotency key), so an automatic retry of a request the server
+            # already accepted bills the whole batch twice.
+            batch = client.with_options(max_retries=0).messages.batches.create(requests=requests)
             receipt = destyle.BatchReceipt(
                 batch_id=batch.id,
                 created_at=utc_now_iso(),
                 model=args.model,
                 n_requests=len(requests),
             )
-            # Committed BEFORE the wait: this id is the only route back to
+            # Appended BEFORE the wait: this id is the only route back to
             # results that already exist server-side.
-            receipts.append(receipt)
-            destyle.write_receipts(batch_receipts(), receipts)
+            destyle.append_receipt(batch_receipts(), receipt)
+            receipts = destyle.load_receipts(batch_receipts())
             log.info("submitted batch %s (%d requests) - receipt written", batch.id, len(requests))
             _drain(client, receipt)
-            receipt.downloaded = True
-            destyle.write_receipts(batch_receipts(), receipts)
+            destyle.append_receipt(
+                batch_receipts(), receipt.model_copy(update={"downloaded": True})
+            )
 
+    receipts = destyle.load_receipts(batch_receipts())
     pairs, rejected = destyle.build_pairs(passages, destyle_raw(), args.model)
     out_shard = destyle.write_pairs(pairs_shard(), pairs)
+    destyle.write_rejected(rejected_pairs(), rejected)
     reject_counts: dict[str, int] = {}
     for r in rejected:
         reject_counts[str(r.reason)] = reject_counts.get(str(r.reason), 0) + 1
@@ -209,9 +236,20 @@ def _destyle(args: argparse.Namespace) -> int:
         in_tokens=sum(p.in_tokens for p in pairs),
         out_tokens=sum(p.out_tokens for p in pairs),
     )
+    # A manifest claiming fewer requests than it has results describes a run
+    # whose receipts are incomplete - i.e. paid batches this repo cannot reach.
+    # It shipped once (n_requested=50 against n_pairs=10043) because nothing
+    # checked (design-review 2026-07-28).
+    if manifest.n_requested < manifest.n_pairs + manifest.n_rejected:
+        raise CankarError(
+            f"receipts account for {manifest.n_requested} requests but "
+            f"{manifest.n_pairs + manifest.n_rejected} responses are on disk - a batch "
+            f"receipt is missing from {batch_receipts()}. Recover the id from "
+            "`client.messages.batches.list()` before freezing."
+        )
     out_manifest = write_manifest(manifest, pairs_manifest())
     destyle.write_pairs(pairs_samples(), publish.select_samples(pairs))
-    report = destyle.write_pairs_report(pairs_report(), manifest, pairs[:3])
+    report = destyle.write_pairs_report(pairs_report(), manifest, publish.select_samples(pairs, 3))
     log.info(
         "%d pairs, %d rejected (%s) -> %s + %s + %s",
         len(pairs),
@@ -232,7 +270,7 @@ def _publish(args: argparse.Namespace) -> int:
     pairs_mf = load_frozen(pairs_manifest(), destyle.PairsManifest, "cankar pairs destyle")
     passages_mf = load_frozen(passages_manifest(), segment.PassagesManifest, "cankar pairs segment")
 
-    card_path = pairs_shard().parent / "DATASET_CARD.md"
+    card_path = dataset_card()
     card_path.write_text(publish.dataset_card(pairs_mf, passages_mf, args.repo), encoding="utf-8")
     uploads = publish.build_uploads(pairs_shard(), destyle_raw(), pairs_manifest(), card_path)
     publish.check_uploads(uploads)
@@ -246,6 +284,9 @@ def _publish(args: argparse.Namespace) -> int:
         return 0
 
     api = HfApi()
+    publish.require_private(
+        api.repo_info(args.repo, repo_type=publish.REPO_TYPE).private, args.repo
+    )
     for u in uploads:
         if not u.local.exists():
             log.info("skipping absent %s", u.local.name)
