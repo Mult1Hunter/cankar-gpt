@@ -4,96 +4,40 @@ One JSONL file per author under registry/ (committed, diffable). Every document
 that enters the corpus must map to a registry entry; every known-but-unusable
 item (manuscripts, in-copyright editions) is recorded, never silently dropped.
 See ADR 0004.
+
+The data model and title-matching keys live in `cankar.core.works` so sibling
+stages can read work metadata without importing this stage (same split as
+`cankar.core.holdout`). They are re-exported here: this module remains the
+import site for everything in the corpus stage, and owns the CURATION logic -
+indexing, upsert, coverage, reconciliation.
 """
 
 from __future__ import annotations
 
-import re
-import unicodedata
-from enum import StrEnum
 from pathlib import Path
 
-from pydantic import BaseModel
+from cankar.core.works import (
+    Source,
+    SourceRef,
+    SourceStatus,
+    WorkFlag,
+    WorkRecord,
+    normalize_for_author,
+    normalize_title,
+    slugify,
+)
 
-
-class Source(StrEnum):
-    """Where corpus text comes from (ADR 0008: closed sets are enums)."""
-
-    WIKIVIR = "wikivir"
-    DLIB = "dlib"
-    WIKIPEDIA = "wikipedia"
-
-
-class SourceStatus(StrEnum):
-    """Per-source ingestion state of a work."""
-
-    INGESTED = "ingested"  # text is in a corpus shard
-    CANDIDATE = "candidate"  # exists at the source, text not fetched
-    SKIPPED_QUALITY = "skipped-quality"  # fetched but failed the OCR quality gate
-    SKIPPED_MANUSCRIPT = "skipped-manuscript"  # handwriting scan, OCR unusable by policy
-    SKIPPED_RIGHTS = "skipped-rights"  # not public domain at this source
-    MISSING = "missing"  # known work, no usable source found yet
-
-
-class WorkFlag(StrEnum):
-    """Closed set of work-level flags."""
-
-    PREVOD = "prevod"  # the author's translation of someone else's work
-    DLIB_DISCOVERED = "dlib-discovered"  # found via dLib, absent from Wikivir catalogs
-    NOT_BY_AUTHOR = "not-by-author"  # crawled into this author's shard but written by
-    # someone else (about-subject memoir/essay, misfiled bibliography) - excluded from the
-    # merged corpus by merge.py; distinct from cross-author works kept under their true
-    # author via collision_resolution.toml. See ADR 0014.
-
-
-_PUNCT_RE = re.compile(r"[^\w\s]", re.UNICODE)
-_WS_RE = re.compile(r"\s+")
-
-
-def normalize_title(title: str) -> str:
-    """Matching key: NFC, casefold, punctuation to spaces, diacritics KEPT."""
-    t = unicodedata.normalize("NFC", title).casefold()
-    t = _PUNCT_RE.sub(" ", t)
-    return _WS_RE.sub(" ", t).strip()
-
-
-def normalize_for_author(title: str, author: str) -> str:
-    """Also strip a trailing disambiguator naming the author: "Ada (Ivan Cankar)" -> "ada"."""
-    surname = author.split()[-1].casefold()
-    t = unicodedata.normalize("NFC", title)
-    t = re.sub(
-        r"\s*\(([^)]*)\)\s*$",
-        lambda m: "" if surname in m.group(1).casefold() else m.group(0),
-        t,
-    )
-    return normalize_title(t)
-
-
-def slugify(title: str) -> str:
-    t = normalize_title(title)
-    t = unicodedata.normalize("NFKD", t)
-    t = "".join(ch for ch in t if not unicodedata.combining(ch))
-    return _WS_RE.sub("-", t).strip("-")
-
-
-class SourceRef(BaseModel):
-    source: Source
-    id: str  # wikivir page title or dLib URN
-    status: SourceStatus
-    year: int | None = None  # publication year of this edition, if known
-    note: str = ""
-
-
-class WorkRecord(BaseModel):
-    work_id: str
-    title: str  # canonical display title
-    author: str
-    year: int | None = None  # first known publication year
-    genre: str | None = None
-    flags: list[WorkFlag] = []
-    aliases: list[str] = []  # alternate titles ("gl." cross-references)
-    sources: list[SourceRef] = []
-    notes: str = ""  # human notes - tooling must never clobber this
+__all__ = [
+    "Registry",
+    "Source",
+    "SourceRef",
+    "SourceStatus",
+    "WorkFlag",
+    "WorkRecord",
+    "normalize_for_author",
+    "normalize_title",
+    "slugify",
+]
 
 
 class Registry:
