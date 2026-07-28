@@ -6,7 +6,7 @@ Corpus sha256 `d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b`
 Passages sha256 `e1cad3a2643782f9a1e523c883db7d9ce9f4a0fb82142472d6f4c2f6cb3c7438` (data/pairs/passages.jsonl).
 Register sha256 `cec36eb07e77c6d99076ad98ce176c0c097827f6ecdc70ee274b4547be6d985d` (cankar/core/register.py).
 Pairs sha256 `16b83a4dce791773b390e7de3a3dd3028400938318f006eeb0bc92f44899719b` (data/pairs/pairs.jsonl).
-Model `claude-sonnet-5`, de-styler v1, at 2026-07-28T11:29:15+00:00 (git `b3095bb`).
+Model `claude-sonnet-5`, de-styler v1, at 2026-07-28T12:07:36+00:00 (git `abddc4c`).
 
 **10,043 pairs** from 10,049 responses (6,485,606 in / 1,703,920 out tokens).
 
