@@ -13,8 +13,17 @@ from pathlib import Path
 
 import torch
 
-from cankar.core.paths import PairSet, checkpoints_dir, pairs_shard, train_config
+from cankar.core.paths import (
+    PairSet,
+    checkpoints_dir,
+    chunks_manifest,
+    chunks_shard,
+    holdout_manifest,
+    pairs_shard,
+    train_config,
+)
 from cankar.train.config import load_train_config
+from cankar.train.data import cankar_chunk_texts
 from cankar.train.loop import train
 from cankar.train.sample import sample_from_checkpoint
 from cankar.train.sft import SftConfig
@@ -47,12 +56,21 @@ def _sft(args: argparse.Namespace) -> int:
     config = SftConfig.model_validate(raw)
     device = _device(args.device)
     log.info("style-transfer SFT on %s", device)
+    # Resolved here rather than inside the loop: this is the layer that owns
+    # artifact paths, and cankar_chunk_texts carries the holdout exclusion and
+    # the corpus-revision check with it.
+    replay = (
+        cankar_chunk_texts(chunks_shard(), holdout_manifest(), chunks_manifest())
+        if config.rehearsal_frac > 0
+        else None
+    )
     out = train_styler(
         config,
         pairs_shard(PairSet.TRAIN),
         pairs_shard(PairSet.HOLDOUT),
         checkpoints_dir(),
         device,
+        rehearsal_texts=replay,
     )
     log.info("styler -> %s", out)
     return 0

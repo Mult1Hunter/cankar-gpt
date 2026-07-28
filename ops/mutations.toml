@@ -194,3 +194,47 @@ file = "cankar/train/sft_loop.py"
 old = '    if "gptconfig" not in state:'
 new = "    if False:"
 tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# The replay window's whole purpose is that every position is scored. Masking
+# it out leaves a run that reports a healthy rehearsal mix, trains pair-only,
+# and reads as evidence that rehearsal does not work.
+file = "cankar/train/sft.py"
+old = """            n_prompt=1,
+            n_target=seq_len,"""
+new = """            n_prompt=seq_len,
+            n_target=seq_len,"""
+tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# The replay share is defined on SCORED TOKENS, not rows: a window scores
+# seq_len of them against a pair's ~107, so a row-counted mix lands several
+# times heavier in the loss than the number in the config says.
+file = "cankar/train/sft.py"
+old = "        return sum(e.n_target for e in self.examples if e.is_rehearsal) / total"
+new = "        return sum(1 for e in self.examples if e.is_rehearsal) / len(self.examples)"
+tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# A pool too small to serve the requested windows must fail, not quietly train
+# at a rehearsal fraction nobody chose.
+file = "cankar/train/sft.py"
+old = "    if n_avail < n_windows:"
+new = "    if False:"
+tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# rehearsal_frac set with no replay texts must fail loud - a silently pair-only
+# run is indistinguishable from rehearsal that did not help.
+file = "cankar/train/sft_loop.py"
+old = "        if not rehearsal_texts:"
+new = "        if False:"
+tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# pydantic ignores unknown keys by default, so a renamed field in a TOML reads
+# as set while the run silently uses the default.
+file = "cankar/train/sft.py"
+old = '    model_config = ConfigDict(extra="forbid")'
+new = '    model_config = ConfigDict(extra="ignore")'
+tests = "tests/train/test_sft.py"

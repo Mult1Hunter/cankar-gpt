@@ -209,7 +209,7 @@ def test_the_loop_trains_and_lowers_held_out_loss(tmp_path: Path, enc, sp, monke
         seq_len=64,
         batch_size=4,
         epochs=4.0,
-        matrix_lr=1e-3,
+        lr_scale=1.0,
         log_every=1000,
         eval_every=1000,
         checkpoint_every=1000,
@@ -308,3 +308,117 @@ def test_held_out_loss_is_weighted_by_target_tokens(tmp_path: Path, enc, sp) -> 
     batch_mean = sum(v for v, _ in model.seen) / len(model.seen)
     assert got == pytest.approx(token_weighted, abs=1e-6)
     assert got != pytest.approx(batch_mean, abs=1e-3)
+
+
+# --- rehearsal: the replay windows must actually reach the loss ---------------
+
+REPLAY_TEXTS = [
+    "Na tihem dvoriscu je stala klop, ozka in razmajana, in nihce ni sedel nanjo. "
+    "Vecer se je spuscal pocasi, kakor bi se bal, da bo koga zbudil. " * 6,
+    "Mati je stopila na prag in gledala v temo, dolgo, brez besede. "
+    "Vedela je, da se ne vrne, in vendar je cakala. " * 6,
+]
+
+
+def _replay_pool(enc, seq_len: int, n: int, seed: int = 1):
+    from cankar.train.sft import rehearsal_examples
+
+    return rehearsal_examples(REPLAY_TEXTS, enc, seq_len, n, seed)
+
+
+def test_replay_windows_are_fully_scored(enc, sp) -> None:
+    """The module's quietest failure: a replay window built with the wrong
+    n_prompt is masked out entirely, contributes zero gradient, and the run
+    reads as "rehearsal did not help" rather than "rehearsal never ran".
+
+    Counts the surviving positions in the COLLATED tensor rather than trusting
+    Example.n_target, because n_target is the claim and y is the fact."""
+    windows = _replay_pool(enc, seq_len=16, n=3)
+    assert len(windows) == 3
+    assert all(w.is_rehearsal for w in windows)
+
+    _, y = collate(windows, pad_id=0)
+    scored = int((y != IGNORE_INDEX).sum())
+    assert scored == 3 * 16, "every position of an unconditional window is scored"
+    assert scored == sum(w.n_target for w in windows), "n_target must not overstate y"
+
+
+def test_replay_is_the_requested_share_of_scored_tokens(tmp_path: Path, enc, sp) -> None:
+    """Measured in tokens, not rows. A window scores seq_len of them while a pair
+    scores a handful, so an example-counted mix would be several times the
+    intended weight in the actual loss."""
+    from cankar.train.sft import with_rehearsal
+
+    rows = [{"plain": f"{PLAIN} {i}", "cankar": f"{CANKAR} {i}"} for i in range(40)]
+    pairs = load_pairs(_pairs_file(tmp_path, rows), enc, seq_len=64)
+    cfg = SftConfig(seq_len=16, rehearsal_frac=0.2)
+
+    mixed = with_rehearsal(pairs, REPLAY_TEXTS, enc, cfg)
+    assert mixed.n_rehearsal > 0
+    assert mixed.rehearsal_token_frac == pytest.approx(0.2, abs=0.02)
+    # the row share is materially different from the token share - which is the
+    # whole reason the fraction is defined on tokens
+    assert mixed.n_rehearsal / len(mixed.examples) != pytest.approx(0.2, abs=0.02)
+
+
+def test_replay_accounting_does_not_depend_on_list_order(tmp_path: Path, enc, sp) -> None:
+    """`iter_batches` length-sorts and shuffles, so any accounting that inferred
+    "replay was appended last" would report a different mix after batching than
+    before it. The flag lives on the Example for this reason."""
+    from cankar.train.sft import with_rehearsal
+
+    rows = [{"plain": f"{PLAIN} {i}", "cankar": f"{CANKAR} {i}"} for i in range(40)]
+    pairs = load_pairs(_pairs_file(tmp_path, rows), enc, seq_len=64)
+    mixed = with_rehearsal(pairs, REPLAY_TEXTS, enc, SftConfig(seq_len=16, rehearsal_frac=0.2))
+    before = mixed.rehearsal_token_frac
+
+    g = torch.Generator().manual_seed(3)
+    mixed.examples = [mixed.examples[i] for i in torch.randperm(len(mixed.examples), generator=g)]
+    assert mixed.rehearsal_token_frac == before
+
+
+def test_batching_delivers_every_scored_token(tmp_path: Path, enc, sp) -> None:
+    """End-to-end accounting: what the batcher hands the model must equal what
+    the composition log claims. Catches padding or masking errors that would
+    quietly shrink the replay contribution after the mix was reported."""
+    from cankar.train.sft import with_rehearsal
+
+    rows = [{"plain": f"{PLAIN} {i}", "cankar": f"{CANKAR} {i}"} for i in range(40)]
+    pairs = load_pairs(_pairs_file(tmp_path, rows), enc, seq_len=64)
+    mixed = with_rehearsal(pairs, REPLAY_TEXTS, enc, SftConfig(seq_len=16, rehearsal_frac=0.2))
+
+    delivered = sum(
+        int((y != IGNORE_INDEX).sum()) for _, y in iter_batches(mixed, 4, seed=0, epoch=0)
+    )
+    assert delivered == mixed.n_target_tokens
+
+
+def test_a_replay_pool_too_small_fails_loud(enc, sp) -> None:
+    """Silently returning fewer windows than asked would train at a rehearsal
+    fraction nobody chose."""
+    with pytest.raises(CankarError, match="replay windows"):
+        _replay_pool(enc, seq_len=512, n=9999)
+
+
+def test_rehearsal_frac_without_replay_texts_fails_loud(tmp_path: Path, enc, sp) -> None:
+    """A configured mix that silently trains pair-only is the worst outcome
+    available: it looks like evidence that replay does not work."""
+    from cankar.train import sft_loop
+
+    ck = tmp_path / "checkpoints"
+    ck.mkdir()
+    _tiny_checkpoint(ck / "base.pt", enc)
+    rows = [{"plain": PLAIN, "cankar": CANKAR}] * 8
+    p = _pairs_file(tmp_path, rows)
+    cfg = SftConfig(name="x", init_from="base", seq_len=64, rehearsal_frac=0.15)
+
+    with pytest.raises(CankarError, match="no replay texts"):
+        sft_loop.train_styler(cfg, p, p, ck, "cpu", rehearsal_texts=None)
+
+
+def test_an_unknown_config_key_is_rejected() -> None:
+    """pydantic ignores unknown keys by default, so a renamed or misspelled
+    field reads as set while the run uses the default. This test file carried
+    `matrix_lr=1e-3` past that rename and asserted nothing about it."""
+    with pytest.raises(Exception, match="matrix_lr"):
+        SftConfig(matrix_lr=1e-3)  # type: ignore[call-arg]

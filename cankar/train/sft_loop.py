@@ -73,15 +73,32 @@ def train_styler(
     holdout_pairs: Path,
     checkpoints_dir: Path,
     device: str,
+    rehearsal_texts: list[str] | None = None,
 ) -> Path:
+    """`rehearsal_texts` are resolved by the caller, not read from a path here.
+
+    The other data this loop takes are pair shards it opens itself; replay comes
+    in as text because selecting it (Cankar-only, held-out works dropped, corpus
+    revision checked) is `train/data.py`'s job and duplicating that resolution
+    here is how the two would drift apart.
+    """
     torch.manual_seed(config.seed)
     enc = load_encoding(config.tokenizer)
     model, base = load_base(checkpoints_dir / f"{config.init_from}.pt", device)
 
     data = sft.load_pairs(train_pairs, enc, config.seq_len)
+    # Pairs only, deliberately: scoring replay windows here would let voice
+    # retention masquerade as style-transfer progress.
     holdout = sft.load_pairs(holdout_pairs, enc, config.seq_len)
     if not data.examples:
         raise CankarError(f"no usable pairs in {train_pairs}")
+    if config.rehearsal_frac > 0:
+        if not rehearsal_texts:
+            raise CankarError(
+                f"rehearsal_frac is {config.rehearsal_frac} but no replay texts were passed - "
+                "a silently pair-only run would look like replay that did not help"
+            )
+        data = sft.with_rehearsal(data, rehearsal_texts, enc, config)
 
     spe = sft.steps_per_epoch(data, config.batch_size)
     total_steps = max(1, int(spe * config.epochs))
@@ -93,14 +110,17 @@ def train_styler(
         group["initial_lr"] = group["lr"] * config.lr_scale
         group["lr"] = group["initial_lr"]
     log.info(
-        "%s: from %s (step %d) | %d pairs -> %d examples | %d target tokens | "
-        "%d steps/epoch | %d steps (%.1f epochs) | %d held-out | lr_scale %.2f",
+        "%s: from %s (step %d) | %d pairs -> %d examples (+%d replay) | %d target tokens "
+        "(%.1f%% replay) | %d steps/epoch | %d steps (%.1f epochs) | %d held-out | "
+        "lr_scale %.2f",
         config.name,
         config.init_from,
         base.get("step", -1),
         data.n_pairs,
         len(data.examples),
+        data.n_rehearsal,
         data.n_target_tokens,
+        100 * data.rehearsal_token_frac,
         spe,
         total_steps,
         config.epochs,

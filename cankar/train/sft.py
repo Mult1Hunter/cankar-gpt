@@ -16,6 +16,12 @@ on it teaches a 26M-parameter model to generate PLAIN Slovene, which is not the
 task and is capacity it cannot spare. `IGNORE_INDEX` matches the BPB harness so
 both use one masking convention.
 
+**Replay is a first-class data source, not a flag.** The set the loop trains on
+is pairs PLUS unconditional Cankar windows, mixed by scored-token share
+(`with_rehearsal`). The held-out eval deliberately does not get the mix - it
+scores pairs only, or it would reward voice retention as if it were mapping
+progress.
+
 **Over-length pairs are dropped, never truncated.** Measured token lengths:
 p50 194, p95 413, p99 469, max 562. At `seq_len` 512 that is 99.9% coverage, so
 truncation would affect ~10 pairs - and a truncated target teaches the model to
@@ -32,9 +38,10 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import tiktoken
 import torch
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from cankar.core.encoding import bos_id
 from cankar.core.errors import CankarError
@@ -53,12 +60,19 @@ SPECIALS = (USER_START, USER_END, ASSISTANT_START, ASSISTANT_END)
 
 @dataclass(frozen=True)
 class Example:
-    """One tokenized pair. `n_target` is what the loss actually sees - the rest
-    is context the model reads and is never scored on."""
+    """One tokenized training item. `n_target` is what the loss actually sees -
+    the rest is context the model reads and is never scored on.
+
+    `is_rehearsal` marks a replay window rather than a pair. It is carried on the
+    example, not inferred from a position in the list, because the batcher sorts
+    and shuffles: any accounting that assumed "replay is appended last" would
+    silently report the wrong mix the moment it ran through `iter_batches`.
+    """
 
     tokens: list[int]
     n_prompt: int  # tokens before the target span, all masked
     n_target: int
+    is_rehearsal: bool = False
 
 
 @dataclass
@@ -66,10 +80,25 @@ class SftData:
     examples: list[Example]
     n_dropped_too_long: int
     n_pairs: int
+    n_rehearsal: int = 0
 
     @property
     def n_target_tokens(self) -> int:
         return sum(e.n_target for e in self.examples)
+
+    @property
+    def rehearsal_token_frac(self) -> float:
+        """Realized replay share of the SCORED tokens - the only honest unit.
+
+        Not the share of examples: a replay window scores `seq_len` tokens while
+        the median pair scores 107, so an example-counted "10% mix" would be
+        roughly 35% of the actual loss. The requested fraction is checked against
+        this, not against a count of rows.
+        """
+        total = self.n_target_tokens
+        if total == 0:
+            return 0.0
+        return sum(e.n_target for e in self.examples if e.is_rehearsal) / total
 
 
 def special_ids(enc: tiktoken.Encoding) -> dict[str, int]:
@@ -132,6 +161,97 @@ def load_pairs(path: Path, enc: tiktoken.Encoding, seq_len: int) -> SftData:
     return SftData(examples=examples, n_dropped_too_long=dropped, n_pairs=n_pairs)
 
 
+def n_rehearsal_windows(pair_target_tokens: int, seq_len: int, frac: float) -> int:
+    """How many replay windows make `frac` of the scored tokens.
+
+    Solved in tokens, not rows: each window scores exactly `seq_len` of them, so
+    n = frac/(1-frac) * pair_tokens / seq_len.
+    """
+    if not 0.0 <= frac < 1.0:
+        raise CankarError(f"rehearsal_frac must be in [0, 1), got {frac}")
+    if frac == 0.0:
+        return 0
+    return max(1, round(frac / (1.0 - frac) * pair_target_tokens / seq_len))
+
+
+def rehearsal_examples(
+    texts: list[str], enc: tiktoken.Encoding, seq_len: int, n_windows: int, seed: int
+) -> list[Example]:
+    """Unconditional Cankar LM windows, shaped exactly like a pretraining batch.
+
+    Built the way `train/data.py` builds pretraining batches - docs BOS-prefixed,
+    concatenated into one permuted stream, sliced at a fixed width - because the
+    point of replay is to rehearse the distribution the base checkpoint actually
+    learned. Windows that all began at a clean document boundary would be an
+    easier distribution than the model ever saw, and would defend the wrong thing.
+
+    `n_prompt=1` marks the whole window as scored: there is no prompt to mask, so
+    every position contributes, which is the objective the BPB eval measures.
+    Getting this wrong is the module's quietest failure - a fully-masked window
+    contributes no gradient while the composition log still reports a healthy
+    mix, so it reads as "replay does not help" rather than "replay never ran".
+    `SftData.rehearsal_token_frac` exists to make that visible.
+    """
+    if n_windows <= 0:
+        return []
+    rng = np.random.default_rng(seed)
+    bos = bos_id(enc)
+    docs = [[bos, *enc.encode_ordinary(t)] for t in texts]
+    stream: list[int] = []
+    for i in rng.permutation(len(docs)):
+        stream.extend(docs[i])
+    width = seq_len + 1  # +1: the (x, y) shift needs one token beyond the window
+    n_avail = len(stream) // width
+    if n_avail < n_windows:
+        raise CankarError(
+            f"need {n_windows} replay windows of {width} tokens but the corpus holds "
+            f"{n_avail} ({len(stream)} tokens) - lower rehearsal_frac or seq_len"
+        )
+    return [
+        Example(
+            tokens=stream[p * width : (p + 1) * width],
+            n_prompt=1,
+            n_target=seq_len,
+            is_rehearsal=True,
+        )
+        for p in rng.choice(n_avail, size=n_windows, replace=False)
+    ]
+
+
+def with_rehearsal(
+    data: SftData, texts: list[str], enc: tiktoken.Encoding, config: SftConfig
+) -> SftData:
+    """Mix replay windows into a pair set.
+
+    Returns a new SftData rather than mutating: the caller's pair-only set stays
+    usable for the held-out eval, which must never score replay windows - that
+    would measure voice retention and call it style-transfer progress.
+    """
+    windows = rehearsal_examples(
+        texts,
+        enc,
+        config.seq_len,
+        n_rehearsal_windows(data.n_target_tokens, config.seq_len, config.rehearsal_frac),
+        config.seed,
+    )
+    mixed = SftData(
+        examples=[*data.examples, *windows],
+        n_dropped_too_long=data.n_dropped_too_long,
+        n_pairs=data.n_pairs,
+        n_rehearsal=len(windows),
+    )
+    log.info(
+        "rehearsal: %d windows over %d pair examples | %d scored tokens, %.1f%% replay "
+        "(requested %.1f%%)",
+        mixed.n_rehearsal,
+        len(data.examples),
+        mixed.n_target_tokens,
+        100 * mixed.rehearsal_token_frac,
+        100 * config.rehearsal_frac,
+    )
+    return mixed
+
+
 def collate(batch: list[Example], pad_id: int) -> tuple[torch.Tensor, torch.Tensor]:
     """(x, y) padded to the longest example IN THIS BATCH.
 
@@ -179,7 +299,15 @@ class SftConfig(BaseModel):
     reads it). Duplicating n_layer/n_embd here would let a config disagree
     with the weights it loads - a mismatch worth making impossible rather
     than merely detected.
+
+    `extra="forbid"` because pydantic's default is to IGNORE unknown keys, which
+    makes a stale or misspelled field in a TOML read as "set" while the run
+    quietly uses the default. A test carried `matrix_lr=1e-3` for exactly this
+    reason after that field was renamed, and went on asserting things about a
+    learning rate it was not setting.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str = "styler-v1"
     init_from: str = "cankar-v1"  # checkpoints/<name>.pt - the voice to build on
@@ -200,6 +328,19 @@ class SftConfig(BaseModel):
     # lr_scale multiplies EVERY group, preserving nanochat's tuned ratios
     # between them while lowering the whole schedule. 0.1 is a tenth of the
     # pretraining rates.
+    # Replay against catastrophic forgetting: this share of the SCORED tokens is
+    # unconditional Cankar prose rather than a pair. Fine-tuning without it is
+    # the highest-forgetting option available, and the first Phase 6 sweep paid
+    # for that - a perfectly monotonic frontier where every configuration that
+    # improved the mapping degraded held-out BPB, because BPB was measured after
+    # the fact and nothing in the objective defended it. Replay puts it back in
+    # the loss: the optimizer can no longer buy pair loss with voice, because
+    # voice is now part of what it is scoring.
+    #
+    # 5-20% is the published band. Default 0.0 keeps the frozen no-rehearsal
+    # sweep reproducible; the calibrated value is set from the comparison grid.
+    rehearsal_frac: float = 0.0
+
     lr_scale: float = 0.1
     warmup_frac: float = 0.03
     min_lr_frac: float = 0.1
