@@ -1,0 +1,59 @@
+# Topics for the Phase 6 fresh-draft eval set.
+#
+# COMMITTED BEFORE GENERATION, deliberately. The failure mode for an eval set is
+# not fabrication, it is reselection: quietly dropping topics whose output looked
+# bad and keeping the ones that flattered the model. Freezing the list first
+# makes that visible in the diff.
+#
+# Chosen to be as far from Cankar's subject matter as ordinary modern life gets.
+# Every de-styled training passage is about poverty, Ljubljana, longing, or
+# 1900s village life; a styler that only works on those would score perfectly
+# here and be useless in production, because a Phase 8 user asks about anything.
+# Topic is therefore the ONE variable that changes - the register is identical
+# to the training distribution by design (invariant #1).
+
+topics = [
+  # modern domestic
+  "assembling flat-pack furniture and losing one screw",
+  "a washing machine that stops mid-cycle",
+  "sorting recycling on a Tuesday evening",
+  "a neighbour's dog barking through a video call",
+  "defrosting a freezer that has iced over",
+  # work and bureaucracy
+  "renewing a passport at the administrative unit",
+  "a software bug that only appears on Fridays",
+  "a meeting that could have been an email",
+  "filing an insurance claim after a minor car scrape",
+  "setting up a new phone and migrating contacts",
+  # food
+  "making risotto and getting the rice wrong",
+  "a supermarket queue at closing time",
+  "growing basil on a kitchen windowsill",
+  "a coffee machine that needs descaling",
+  # sport and leisure
+  "a Sunday league football match in the rain",
+  "learning to swim front crawl as an adult",
+  "a bicycle with a slipping gear chain",
+  "watching a ski jumping competition on television",
+  "a chess game against a computer",
+  # travel and transport
+  "a train delayed at Zidani Most",
+  "packing for a weekend trip and overpacking",
+  "finding parking in a city centre",
+  "a flight boarding gate change",
+  # health and admin
+  "waiting for a doctor's appointment",
+  "a dentist explaining a filling",
+  "starting to run and getting shin splints",
+  # technology
+  "a laptop battery that no longer holds charge",
+  "backing up photos to an external drive",
+  "an online form that rejects a valid address",
+  "explaining a password manager to a relative",
+  # nature, modern framing
+  "a heatwave in an apartment without air conditioning",
+  "a hailstorm damaging a car roof",
+  "planting a tree in a housing estate courtyard",
+  "a hedgehog crossing a suburban road at night",
+  "the first frost on a windscreen",
+]
