@@ -270,8 +270,10 @@ def _publish(args: argparse.Namespace) -> int:
     pairs_mf = load_frozen(pairs_manifest(), destyle.PairsManifest, "cankar pairs destyle")
     passages_mf = load_frozen(passages_manifest(), segment.PassagesManifest, "cankar pairs segment")
 
+    card = publish.dataset_card(pairs_mf, passages_mf, args.repo)
+    publish.require_licensed(card)
     card_path = dataset_card()
-    card_path.write_text(publish.dataset_card(pairs_mf, passages_mf, args.repo), encoding="utf-8")
+    card_path.write_text(card, encoding="utf-8")
     uploads = publish.build_uploads(pairs_shard(), destyle_raw(), pairs_manifest(), card_path)
     publish.check_uploads(uploads)
 
@@ -284,9 +286,6 @@ def _publish(args: argparse.Namespace) -> int:
         return 0
 
     api = HfApi()
-    publish.require_private(
-        api.repo_info(args.repo, repo_type=publish.REPO_TYPE).private, args.repo
-    )
     for u in uploads:
         if not u.local.exists():
             log.info("skipping absent %s", u.local.name)
@@ -300,7 +299,7 @@ def _publish(args: argparse.Namespace) -> int:
         )
         log.info("uploaded %s -> %s", u.local.name, u.remote)
     log.info(
-        "published %d pairs to https://huggingface.co/datasets/%s (private)",
+        "published %d pairs (CC BY-SA 4.0) to https://huggingface.co/datasets/%s",
         pairs_mf.n_pairs,
         args.repo,
     )

@@ -1,8 +1,7 @@
 ---
 language:
 - sl
-license: other
-license_name: mixed-see-card
+license: cc-by-sa-4.0
 pretty_name: CankarParallel
 size_categories:
 - 10K<n<100K
@@ -60,14 +59,23 @@ Passages from the frozen held-out evaluation set (holdout sha256
 built from held-out works would contaminate any evaluation of a model trained
 on them, one-way and undetectably.
 
-## Licensing - read before redistributing
+## Licensing and attribution
 
-Ivan Cankar died in 1918, so **his text is public domain**. The `plain` side is
-machine-generated output.
+**CC BY-SA 4.0.** Attribute **[Slovene Wikisource (Wikivir)
+contributors](https://sl.wikisource.org)**, whose volunteer transcriptions the
+`cankar` side reproduces, and this dataset.
 
-The open question is whether the Wikivir *transcriptions* carry terms of their
-own. That is unresolved, which is why this dataset is not yet released for
-redistribution. Treat it as reference material until the card says otherwise.
+Ivan Cankar died in 1918, so the underlying work is public domain. The
+transcriptions are a separate layer: whether a faithful transcription of a
+public-domain text attracts rights of its own is unsettled in EU law - it lacks
+the originality copyright requires, but the sui generis database right protects
+substantial investment regardless. CC BY-SA is applied deliberately rather than
+because the question was answered: it is what Wikivir asks for, it costs nothing
+here, and the alternative required being right about an open question.
+
+Share-alike applies to redistribution of the dataset. Whether it reaches model
+weights trained on it is unsettled everywhere and is not a position this card
+takes.
 
 ## Reproducing
 
