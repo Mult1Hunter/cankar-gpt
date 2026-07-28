@@ -153,7 +153,13 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       (MF-3); the "Cankar vs plain Slovene" use is validated when Phase-5 pairs
       exist. SloBERTa still deferred - now with a measured AUC to beat.
 - [ ] LLM-judge template for meaning preservation *(deferred to Phase 6 - needs Phase-5 pairs; building now is speculative)*
-- [ ] Dev set design: 200 held-out pairs **+ 50 fresh drafts** *(deferred to Phase 5 - pairs do not exist yet)*
+- [ ] Dev set design: 200 held-out pairs **+ 50 fresh drafts**. Held-out half DONE:
+      `cankar pairs segment/destyle --set holdout` -> **289 pairs** from the 12
+      held-out prose works, zero passage- AND work-level overlap with the 9,950
+      training pairs (`PairSet` inverts one shared predicate, so a doc cannot be
+      eligible for both). Fresh drafts remain - they are the other half of the
+      honest headline number, and the only way to measure the train/inference gap
+      design invariant #1 exists to close
 - Rule: every quality claim in README/blog gets a number from this harness
 - [x] **Corpus follow-up RESOLVED (ADR 0014):** the 3 about-Cankar
       misattributions the audit flagged (2 Vera Albreht memoirs, 1 critic's

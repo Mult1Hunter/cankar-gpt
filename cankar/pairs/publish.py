@@ -9,11 +9,21 @@ Two jobs at once, and it is worth being explicit that they are different:
    a standalone contribution, useful outside this project. (No claim is made
    about it being a first; nobody has surveyed what else exists for Slovene.)
 
-The repo stays PRIVATE by default and the card says so, because job 1 needs no
-audience and job 2 has an unresolved licensing question: the Cankar side is
-public domain (died 1918), but the wikivir transcriptions may carry their own
-terms, and that is a decision for the maintainer, not a default. Flipping
-private -> public is easy; the reverse is not.
+Licensing is settled and the reasoning is worth keeping, because the answer is
+not the obvious one. Cankar died in 1918, so the WORK is public domain. But the
+text was not taken from 1900s printings - it was transcribed by volunteers on
+Wikivir, and Wikimedia applies CC BY-SA to contributions. Whether a faithful
+transcription attracts rights of its own is genuinely unsettled: EU copyright
+needs "the author's own intellectual creation", which retyping is not, while the
+EU sui generis DATABASE right protects substantial investment regardless of
+originality - and a decade of volunteer transcription is exactly that.
+
+Resolved as CC BY-SA 4.0 with attribution, on asymmetry rather than certainty:
+if the transcriptions do carry rights we have complied, and if they do not we
+gave away nothing that matters. Asserting public domain unilaterally would
+require being RIGHT about the unsettled question. The project also already
+carries CC BY-SA exposure - the base model was pretrained on 65.3M words of
+Slovenian Wikipedia - so this adds no new category of obligation.
 
 The raw API responses ship alongside the pairs. They are the artifact the money
 actually bought - the pairs are a re-derivable parse of them - so a backup that
@@ -56,8 +66,7 @@ def dataset_card(pairs: PairsManifest, passages: PassagesManifest, repo_id: str)
     return f"""---
 language:
 - sl
-license: other
-license_name: mixed-see-card
+license: cc-by-sa-4.0
 pretty_name: CankarParallel
 size_categories:
 - 10K<n<100K
@@ -115,14 +124,23 @@ Passages from the frozen held-out evaluation set (holdout sha256
 built from held-out works would contaminate any evaluation of a model trained
 on them, one-way and undetectably.
 
-## Licensing - read before redistributing
+## Licensing and attribution
 
-Ivan Cankar died in 1918, so **his text is public domain**. The `plain` side is
-machine-generated output.
+**CC BY-SA 4.0.** Attribute **[Slovene Wikisource (Wikivir)
+contributors](https://sl.wikisource.org)**, whose volunteer transcriptions the
+`cankar` side reproduces, and this dataset.
 
-The open question is whether the Wikivir *transcriptions* carry terms of their
-own. That is unresolved, which is why this dataset is not yet released for
-redistribution. Treat it as reference material until the card says otherwise.
+Ivan Cankar died in 1918, so the underlying work is public domain. The
+transcriptions are a separate layer: whether a faithful transcription of a
+public-domain text attracts rights of its own is unsettled in EU law - it lacks
+the originality copyright requires, but the sui generis database right protects
+substantial investment regardless. CC BY-SA is applied deliberately rather than
+because the question was answered: it is what Wikivir asks for, it costs nothing
+here, and the alternative required being right about an open question.
+
+Share-alike applies to redistribution of the dataset. Whether it reaches model
+weights trained on it is unsettled everywhere and is not a position this card
+takes.
 
 ## Reproducing
 
@@ -195,18 +213,27 @@ def build_uploads(
     ]
 
 
-def require_private(is_private: bool | None, repo_id: str) -> None:
-    """Refuse to upload to a public repo.
+# What every published copy must state. Not a style preference: redistributing
+# volunteer transcriptions without naming the licence or the contributors is the
+# actual hazard now that the dataset is public, and publication is one-way in
+# practice - forks and caches survive un-publishing.
+REQUIRED_CARD_TERMS = ("license: cc-by-sa-4.0", "Wikisource", "CC BY-SA 4.0")
 
-    The module docstring asserts this dataset stays private pending the
-    transcription-licensing question, and nothing enforced it. Publication is
-    one-way in practice - forks and caches survive un-publishing - so the
-    property gets a check rather than a sentence (design-review 2026-07-28).
+
+def require_licensed(card: str) -> None:
+    """Refuse to publish a card that does not state its terms.
+
+    Replaces an earlier `require_private`, which enforced the licensing question
+    being OPEN. That check would now block the deliberate answer while leaving
+    the real risk - publishing without stating terms - ungated. When a gate's
+    premise is resolved, retarget it rather than delete it.
     """
-    if is_private is not True:
+    missing = [t for t in REQUIRED_CARD_TERMS if t not in card]
+    if missing:
         raise CankarError(
-            f"{repo_id} is not private. The licensing question on the Wikivir "
-            "transcriptions is open; make the repo private or resolve it deliberately."
+            f"dataset card is missing required licensing terms: {missing}. "
+            "Redistributing Wikivir transcriptions requires naming the licence "
+            "and the contributors."
         )
 
 

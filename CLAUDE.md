@@ -36,7 +36,12 @@ Act as this project's senior engineer, not an assistant:
    perplexity, style classifier, LLM meaning-judge), not vibes. Quality claims carry
    numbers; structural claims carry file paths.
 3. **Corpus scripts are published; the merged corpus is not** (Wikipedia CC BY-SA
-   share-alike vs. PD Cankar - see ROADMAP Phase 1 licensing note).
+   share-alike vs. PD Cankar - see ROADMAP Phase 1 licensing note). **Derived
+   Cankar-only artifacts ARE published, under CC BY-SA 4.0 with Wikisource
+   attribution** - the work is PD (died 1918) but the wikivir transcriptions are
+   a separate layer whose status is unsettled, so share-alike is applied on
+   asymmetry, not certainty (2026-07-28; `cankar/pairs/publish.py` carries the
+   reasoning and `require_licensed` gates it).
 4. **MVP gate:** phases 0-4 ship before any serving/orchestration work starts.
 
 ## Conventions

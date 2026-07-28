@@ -6,7 +6,7 @@ Two report classes live here (marker line names the class):
   byte-identically by `cankar corpus report --all`; CI diff-checks them.
 - **snapshot** (corpus-quality.md, near-duplicates.md, dlib-reconcile.md,
   merge.md, tokenizer-eval.md, chunks.md, token-stats.md, eval-holdout.md,
-  style.md, bpb.md, passages.md, pairs.md): computed from gitignored data/ +
+  style.md, bpb.md, {train,holdout}-passages.md, {train,holdout}-pairs.md): computed from gitignored data/ +
   checkpoints/ or live dLib state by `cankar corpus stats` / `dedup` /
   `reconcile-dlib` / `merge` / `cankar tokenizer eval` / `chunk` / `stats` /
   `cankar evals holdout-freeze` / `style-train` / `bpb-freeze` / `cankar pairs

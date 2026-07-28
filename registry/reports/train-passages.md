@@ -6,7 +6,7 @@ Corpus sha256 `d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b`
 Held-out set sha256 `07ccca96a4fe339d50a9da9d38f71b4bcec98962e601d6460b633edca96331a2` (registry/evals/holdout.json).
 Works ledger sha256 `a766acd29e6eb6d38899002ae3425e73b7ae7f136de23ca8558b8187dcd7e039` (registry/works/cankar.jsonl).
 Passages sha256 `e1cad3a2643782f9a1e523c883db7d9ce9f4a0fb82142472d6f4c2f6cb3c7438` (data/pairs/passages.jsonl).
-Segmenter v2, cut at 2026-07-28T12:38:59+00:00 (git `b510bd9`).
+Segmenter v2, cut at 2026-07-28T13:41:40+00:00 (git `ec82ab6-dirty`).
 
 **13,872 passages** (4,732,900 chars) from 82 `wikivir`
 Cankar docs. Passages are paragraph-bounded and content-addressed by

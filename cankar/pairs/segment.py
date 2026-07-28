@@ -59,6 +59,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from cankar.core.jsonl import iter_jsonl_docs
+from cankar.core.paths import PairSet
 from cankar.core.reports import generated_marker, write_report
 from cankar.core.works import genre_of
 
@@ -291,24 +292,32 @@ class DocSkip(StrEnum):
     from RejectReason, which counts candidate windows inside a kept doc."""
 
     NOT_CANKAR_PROSE_SOURCE = "not_cankar_prose_source"
-    HELD_OUT = "held_out"
+    HELD_OUT = "held_out"  # excluded from TRAIN
+    NOT_HELD_OUT = "not_held_out"  # excluded from HOLDOUT
     GENRE_NOT_PROSE = "genre_not_prose"
 
 
 def classify_doc(
-    doc: dict, excludes: frozenset[str], genres: dict[str, str | None]
+    doc: dict,
+    excludes: frozenset[str],
+    genres: dict[str, str | None],
+    pair_set: PairSet = PairSet.TRAIN,
 ) -> DocSkip | None:
-    """None when the doc is eligible for segmentation, else why it was skipped.
+    """None when the doc is eligible for this set, else why it was skipped.
 
-    The holdout filter is load-bearing: a pair built from a held-out work
-    contaminates the Phase 6 evaluation of the styler, one-way and undetectably.
-    The genre filter keeps drama out of a prose segmenter.
+    The holdout filter is load-bearing and INVERTS with the set: TRAIN excludes
+    held-out works so the styler never trains on them, HOLDOUT keeps only those
+    so the styler can be scored on text the base model did not see in
+    pretraining. Sharing one predicate keeps the two sets provably disjoint -
+    a doc cannot be eligible for both.
+
+    The genre filter keeps drama out of a prose segmenter either way.
     """
     author = doc.get("author") or ""
     if "Cankar" not in author or doc.get("source") != SOURCE_WIKIVIR:
         return DocSkip.NOT_CANKAR_PROSE_SOURCE
-    if doc["url"] in excludes:
-        return DocSkip.HELD_OUT
+    if (doc["url"] in excludes) is not (pair_set is PairSet.HOLDOUT):
+        return DocSkip.HELD_OUT if pair_set is PairSet.TRAIN else DocSkip.NOT_HELD_OUT
     if genre_of(genres, doc["title"], author) not in PROSE_GENRES:
         return DocSkip.GENRE_NOT_PROSE
     return None
@@ -319,6 +328,7 @@ def segment_corpus(
     excludes: frozenset[str],
     genres: dict[str, str | None],
     params: SegmentParams,
+    pair_set: PairSet = PairSet.TRAIN,
 ) -> SegmentResult:
     """Segment every eligible doc, deduplicating by passage_id.
 
@@ -332,7 +342,7 @@ def segment_corpus(
     skips: Counter[str] = Counter()
     n_docs = 0
     for doc in iter_jsonl_docs(corpus_path, "run: cankar corpus merge"):
-        skip = classify_doc(doc, excludes, genres)
+        skip = classify_doc(doc, excludes, genres, pair_set)
         if skip is not None:
             # not_cankar_prose_source is the whole non-Cankar corpus and would
             # swamp the ledger; the two decisions worth auditing are recorded.
@@ -391,6 +401,7 @@ class PassagesManifest(BaseModel):
     git_sha: str
     created_at: str
     source: str
+    pair_set: str
     prose_genres: list[str]
     params: SegmentParams
     n_docs: int
