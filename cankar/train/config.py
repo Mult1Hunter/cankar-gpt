@@ -14,6 +14,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from cankar.core.errors import CankarError
+from cankar.train.sft import SftConfig
 
 
 class CorpusScope(StrEnum):
@@ -71,3 +72,16 @@ def load_train_config(path: Path) -> TrainConfig:
     if not path.exists():
         raise CankarError(f"no train config at {path}")
     return TrainConfig.model_validate(tomllib.loads(path.read_text()))
+
+
+def load_sft_config(path: Path) -> SftConfig:
+    """Second TOML->pydantic loader, so it stops being inline in the CLI.
+
+    Same shape as `load_train_config` on purpose: a missing preset is a domain
+    error, not a bare FileNotFoundError out of a library call. With SftConfig's
+    `extra="forbid"`, this is also where a typo'd key fails - which needs to be
+    at load time in CI, not thirty seconds into a rented GPU.
+    """
+    if not path.exists():
+        raise CankarError(f"no sft config at {path}")
+    return SftConfig.model_validate(tomllib.loads(path.read_text()))

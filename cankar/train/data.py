@@ -108,6 +108,21 @@ class TokenizedCorpus:
         return cls(docs=docs, n_tokens=sum(len(d) for d in docs), bos=bos)
 
 
+def permuted_stream(corpus: TokenizedCorpus, seed: int) -> np.ndarray:
+    """BOS-prefixed docs concatenated in a seeded permutation - the one token
+    stream that pretraining windows are cut from.
+
+    Extracted so Phase 6 replay (`train/sft.py`) cuts its windows from the SAME
+    construction rather than a lookalike. The correctness argument for replay is
+    that it rehearses the distribution the base checkpoint actually saw, and two
+    copies of this packing would let that quietly stop being true - a change to
+    BOS handling or ordering here would leave replay rehearsing something the
+    model never learned, which is the exact failure replay exists to avoid.
+    """
+    order = np.random.default_rng(seed).permutation(len(corpus.docs))
+    return np.concatenate([corpus.docs[i] for i in order])
+
+
 def steps_per_epoch(corpus: TokenizedCorpus, batch_size: int, seq_len: int) -> int:
     n_windows = (corpus.n_tokens - 1) // seq_len
     return n_windows // batch_size
@@ -127,8 +142,7 @@ def iter_batches(
     produced = 0
     epoch = 0
     while True:
-        order = np.random.default_rng(seed + epoch).permutation(len(corpus.docs))
-        stream = np.concatenate([corpus.docs[i] for i in order])
+        stream = permuted_stream(corpus, seed + epoch)
         n = (len(stream) - 1) // seq_len
         if n == 0:
             raise CankarError(f"corpus ({corpus.n_tokens} tok) smaller than seq_len {seq_len}")

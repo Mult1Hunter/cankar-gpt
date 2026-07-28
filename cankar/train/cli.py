@@ -22,11 +22,10 @@ from cankar.core.paths import (
     pairs_shard,
     train_config,
 )
-from cankar.train.config import load_train_config
+from cankar.train.config import load_sft_config, load_train_config
 from cankar.train.data import cankar_chunk_texts
 from cankar.train.loop import train
 from cankar.train.sample import sample_from_checkpoint
-from cankar.train.sft import SftConfig
 from cankar.train.sft_loop import train_styler
 
 log = logging.getLogger("cankar.train")
@@ -50,10 +49,7 @@ def _run(args: argparse.Namespace) -> int:
 
 def _sft(args: argparse.Namespace) -> int:
     """Phase 6: fine-tune the Cankar voice onto a plain-Slovene prompt."""
-    import tomllib
-
-    raw = tomllib.loads(args.config.read_text(encoding="utf-8")) if args.config else {}
-    config = SftConfig.model_validate(raw)
+    config = load_sft_config(args.config)
     device = _device(args.device)
     log.info("style-transfer SFT on %s", device)
     # Resolved here rather than inside the loop: this is the layer that owns
@@ -61,7 +57,7 @@ def _sft(args: argparse.Namespace) -> int:
     # the corpus-revision check with it.
     replay = (
         cankar_chunk_texts(chunks_shard(), holdout_manifest(), chunks_manifest())
-        if config.rehearsal_frac > 0
+        if config.uses_rehearsal
         else None
     )
     out = train_styler(
@@ -113,9 +109,10 @@ def register(parser: argparse.ArgumentParser) -> None:
     r.set_defaults(func=_run)
 
     f = sub.add_parser("sft", help="Phase 6: style-transfer fine-tune on the pairs")
-    f.add_argument(
-        "--config", type=Path, default=None, help="TOML preset (defaults apply if omitted)"
-    )
+    # Defaults to the committed preset, matching `train run`. One file = one
+    # reproducible run (configs/README.md, ADR 0003) - a bare `cankar train sft`
+    # must not quietly diverge from the record of the shipped run.
+    f.add_argument("--config", type=Path, default=train_config("styler-v1"))
     f.add_argument("--device", default=None, help="cuda/cpu (default: auto)")
     f.set_defaults(func=_sft)
 

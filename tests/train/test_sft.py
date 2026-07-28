@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 import torch
+from pydantic import ValidationError
 
 from cankar.core.errors import CankarError
 from cankar.tokenizer import train as tok_train
@@ -149,12 +150,17 @@ def test_batching_is_deterministic_and_covers_every_example(tmp_path: Path, enc,
     """Order is a pure function of (seed, epoch) so a resumed run replays it."""
     rows = [{"plain": f"{PLAIN} {i}", "cankar": f"{CANKAR} {i}"} for i in range(20)]
     data = load_pairs(_pairs_file(tmp_path, rows), enc, seq_len=256)
-    first = [x.shape for x, _ in iter_batches(data, 4, seed=7, epoch=0)]
-    again = [x.shape for x, _ in iter_batches(data, 4, seed=7, epoch=0)]
-    other = [x.shape for x, _ in iter_batches(data, 4, seed=7, epoch=1)]
-    assert first == again
-    assert sum(s[0] for s in first) == len(data.examples)
-    assert other != [] and sum(s[0] for s in other) == len(data.examples)
+
+    # compare CONTENTS, not shapes: 20 near-identical rows all batch to the same
+    # shape, so a shape-only assertion held even if the order changed entirely
+    def run(seed, epoch):
+        return [x.tolist() for x, _ in iter_batches(data, 4, seed=seed, epoch=epoch)]
+
+    first, again, other = run(7, 0), run(7, 0), run(7, 1)
+    assert first == again, "same (seed, epoch) must replay the same order"
+    assert first != other, "a different epoch must reshuffle"
+    assert sum(len(b) for b in first) == len(data.examples)
+    assert sum(len(b) for b in other) == len(data.examples)
 
 
 def test_a_tokenizer_without_chat_specials_fails_loud(enc, sp) -> None:
@@ -363,20 +369,61 @@ def test_replay_is_the_requested_share_of_scored_tokens(tmp_path: Path, enc, sp)
     assert mixed.n_rehearsal / len(mixed.examples) != pytest.approx(0.2, abs=0.02)
 
 
-def test_replay_accounting_does_not_depend_on_list_order(tmp_path: Path, enc, sp) -> None:
-    """`iter_batches` length-sorts and shuffles, so any accounting that inferred
-    "replay was appended last" would report a different mix after batching than
-    before it. The flag lives on the Example for this reason."""
+def test_the_token_share_is_not_the_gradient_share(tmp_path: Path, enc, sp) -> None:
+    """The knob sets a TOKEN share; the optimizer sees a STEP share, and they
+    differ by ~3x. `GPT.forward` reduces with mean, so each batch moves the
+    weights equally regardless of its token count, and `iter_batches`
+    length-sorts - replay windows are all exactly seq_len+1 while pairs are
+    shorter, so the two kinds land in separate batches.
+
+    Measured from the batches themselves rather than assumed, because that
+    segregation is a property of the bucketing and would change with it. This is
+    the test that would have caught the original docstring claiming the token
+    figure was "the only honest unit"."""
     from cankar.train.sft import with_rehearsal
 
-    rows = [{"plain": f"{PLAIN} {i}", "cankar": f"{CANKAR} {i}"} for i in range(40)]
+    # 42, not a multiple of batch_size 4: with an exact multiple the length sort
+    # separates pairs from windows on a batch boundary and NO batch is mixed,
+    # which makes "any replay" and "all replay" indistinguishable - the mutation
+    # that swaps them survived against a 40-row fixture.
+    rows = [{"plain": f"{PLAIN} {i}", "cankar": f"{CANKAR} {i}"} for i in range(42)]
     pairs = load_pairs(_pairs_file(tmp_path, rows), enc, seq_len=64)
-    mixed = with_rehearsal(pairs, REPLAY_TEXTS, enc, SftConfig(seq_len=16, rehearsal_frac=0.2))
-    before = mixed.rehearsal_token_frac
+    # seq_len 64 against ~15-token pair targets reproduces the production
+    # geometry (512 vs 107): replay windows are the LONG examples. At seq_len 16
+    # they would be the short ones and the inequality below flips - the divergence
+    # is real either way, but its direction follows the length ratio.
+    cfg = SftConfig(seq_len=64, batch_size=4, rehearsal_frac=0.2)
+    mixed = with_rehearsal(pairs, REPLAY_TEXTS, enc, cfg)
 
-    g = torch.Generator().manual_seed(3)
-    mixed.examples = [mixed.examples[i] for i in torch.randperm(len(mixed.examples), generator=g)]
-    assert mixed.rehearsal_token_frac == before
+    from cankar.train.sft import length_buckets, rehearsal_step_frac
+
+    # the grouping the reported figure is computed from must be the grouping the
+    # batcher actually emits, or the number is authoritative-looking and wrong
+    buckets = length_buckets(mixed, cfg.batch_size, seed=0, epoch=0)
+    emitted = [tuple(x.shape) for x, _ in iter_batches(mixed, cfg.batch_size, seed=0, epoch=0)]
+    assert sorted(len(b) for b in buckets) == sorted(n for n, _ in emitted)
+
+    # a batch counts as replay if it holds ANY window; pure ones are visible in
+    # the tensors (full width, every position scored), so the two must bracket
+    pure = sum(
+        1
+        for _, y in iter_batches(mixed, cfg.batch_size, seed=0, epoch=0)
+        if int((y != IGNORE_INDEX).sum()) == y.numel() and y.shape[1] == cfg.seq_len
+    )
+    n_mixed = sum(0 < sum(mixed.examples[i].is_rehearsal for i in g) < len(g) for g in buckets)
+    assert n_mixed > 0, "fixture must produce a mixed batch or any/all are the same test"
+    reported = rehearsal_step_frac(mixed, cfg.batch_size, seed=0)
+    assert reported == pytest.approx((pure + n_mixed) / len(buckets), abs=1e-9)
+
+    # the load-bearing claim: the gradient share tracks the EXAMPLE share, not
+    # the token share the config sets - segregation is what makes that true
+    example_share = mixed.n_rehearsal / len(mixed.examples)
+    assert abs(reported - example_share) <= 1 / len(buckets)
+
+    assert reported < mixed.rehearsal_token_frac, (
+        "the step share must come out BELOW the token share - if these match, the "
+        "length bucketing changed and rehearsal_frac now means something else"
+    )
 
 
 def test_batching_delivers_every_scored_token(tmp_path: Path, enc, sp) -> None:
@@ -447,12 +494,81 @@ def test_the_default_config_trains_end_to_end_with_replay(tmp_path: Path, enc, s
     out = sft_loop.train_styler(cfg, p, p, ck, "cpu", rehearsal_texts=REPLAY_TEXTS)
     assert out.exists()
     state = torch.load(out, map_location="cpu", weights_only=False)
-    assert state["config"]["rehearsal_frac"] == cfg.rehearsal_frac, "the mix must be recorded"
+    # not a round-trip of the requested field - evidence replay actually landed
+    assert state["composition"]["n_rehearsal"] > 0
+    assert state["composition"]["rehearsal_token_frac"] > 0
+    assert state["composition"]["rehearsal_step_frac"] > 0
 
 
 def test_an_unknown_config_key_is_rejected() -> None:
     """pydantic ignores unknown keys by default, so a renamed or misspelled
     field reads as set while the run uses the default. This test file carried
     `matrix_lr=1e-3` past that rename and asserted nothing about it."""
-    with pytest.raises(Exception, match="matrix_lr"):
+    with pytest.raises(ValidationError, match="matrix_lr"):
         SftConfig(matrix_lr=1e-3)  # type: ignore[call-arg]
+
+
+def test_the_committed_preset_validates() -> None:
+    """`cankar train sft` runs from this file, so a typo in it must fail in CI
+    rather than thirty seconds into a rented GPU - `extra="forbid"` only helps
+    if something actually loads the preset (matches test_training.py's check for
+    the tinycankar config)."""
+    from cankar.core.paths import train_config
+    from cankar.train.config import load_sft_config
+
+    cfg = load_sft_config(train_config("styler-v1"))
+    assert cfg.name == "styler-v1"
+    assert cfg.init_from == "cankar-v1"
+    # the calibrated values, stated in the file rather than inherited
+    assert cfg.epochs == 2.0
+    assert cfg.lr_scale == 0.3
+    assert cfg.rehearsal_frac == 0.5
+
+
+def test_a_missing_sft_preset_is_a_domain_error(tmp_path: Path) -> None:
+    from cankar.train.config import load_sft_config
+
+    with pytest.raises(CankarError, match="no sft config"):
+        load_sft_config(tmp_path / "nope.toml")
+
+
+def test_window_count_solves_the_requested_token_share() -> None:
+    """n*L / (P + n*L) == frac is the whole definition; check it directly rather
+    than only through the end-to-end mix."""
+    from cankar.train.sft import n_rehearsal_windows
+
+    for frac in (0.1, 0.2, 0.5, 0.65):
+        n = n_rehearsal_windows(1_000_000, 512, frac)
+        realized = n * 512 / (1_000_000 + n * 512)
+        assert realized == pytest.approx(frac, abs=0.001)
+    assert n_rehearsal_windows(1_000_000, 512, 0.0) == 0
+
+
+def test_a_tiny_requested_share_still_yields_a_whole_window() -> None:
+    """The max(1, ...) floor overshoots on small sets - a 1% request against 100
+    pair tokens is 0.002 windows. Rounding to zero would silently disable replay
+    on a run that asked for it, so it rounds UP and the overshoot is the honest
+    cost of windows being indivisible."""
+    from cankar.train.sft import n_rehearsal_windows
+
+    assert n_rehearsal_windows(100, 512, 0.01) == 1
+
+
+def test_rehearsal_frac_out_of_range_is_rejected() -> None:
+    """Caught at config load, not inside the window solver on a rented pod."""
+    with pytest.raises(ValidationError):
+        SftConfig(rehearsal_frac=1.5)
+    with pytest.raises(ValidationError):
+        SftConfig(rehearsal_frac=-0.1)
+
+
+def test_seq_len_beyond_the_base_checkpoint_fails_loud(tmp_path: Path, enc) -> None:
+    """GPT.forward asserts T <= cos.size(1); without this the run dies on a bare
+    AssertionError mid-training instead of before the data is loaded."""
+    from cankar.train import sft_loop
+
+    ck = tmp_path / "checkpoints"
+    ck.mkdir()
+    _tiny_checkpoint(ck / "base.pt", enc)  # trained at sequence_len 64
+    with pytest.raises(CankarError, match="exceeds"):
+        sft_loop.load_base(ck / "base.pt", "cpu", seq_len=512)

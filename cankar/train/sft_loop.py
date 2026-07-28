@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
+from typing import Any
 
 import torch
 
@@ -26,21 +27,34 @@ from cankar.core.errors import CankarError
 from cankar.model.build import build_gpt
 from cankar.model.gpt import GPT, GPTConfig
 from cankar.train import sft
+from cankar.train.checkpoint import load_checkpoint
 
 log = logging.getLogger("cankar.train")
 
 
-def load_base(init_from: Path, device: str) -> tuple[GPT, dict]:
+def load_base(init_from: Path, device: str, seq_len: int | None = None) -> tuple[GPT, dict]:
     """Rebuild a checkpoint's model from its OWN gptconfig (ADR 0017).
 
     Never from a config file: the shape must match the weights, and reading it
     from the checkpoint makes disagreement impossible rather than detected.
+
+    The `gptconfig` guard is a third copy of the one in `train/sample.py` and
+    `evals/bpb.py`. That is layering-forced, not accidental: `cankar.core` and
+    `cankar.model` sit in ONE import-linter layer, so a helper needing both
+    `CankarError` and `GPTConfig` has no legal home today (`sample.py` carries
+    the same note).
     """
-    if not init_from.exists():
-        raise CankarError(f"no checkpoint at {init_from} - SFT fine-tunes an existing model")
-    state: dict = torch.load(init_from, map_location="cpu", weights_only=False)
+    state: dict[str, Any] = dict(load_checkpoint(init_from, "cpu"))
     if "gptconfig" not in state:
         raise CankarError(f"{init_from} predates the self-describing checkpoint (ADR 0017)")
+    trained_len = state["gptconfig"].get("sequence_len")
+    if seq_len is not None and trained_len is not None and seq_len > trained_len:
+        # Otherwise this dies mid-run on a bare `assert T <= self.cos.size(1)`
+        # inside GPT.forward - on a rented pod, after the data is already loaded.
+        raise CankarError(
+            f"seq_len {seq_len} exceeds {init_from.name}'s trained sequence_len {trained_len} - "
+            "the rotary tables are not built that long"
+        )
     model = build_gpt(GPTConfig(**state["gptconfig"]), device)
     model.load_state_dict(state["model"])
     return model, state
@@ -84,7 +98,7 @@ def train_styler(
     """
     torch.manual_seed(config.seed)
     enc = load_encoding(config.tokenizer)
-    model, base = load_base(checkpoints_dir / f"{config.init_from}.pt", device)
+    model, base = load_base(checkpoints_dir / f"{config.init_from}.pt", device, config.seq_len)
 
     data = sft.load_pairs(train_pairs, enc, config.seq_len)
     # Pairs only, deliberately: scoring replay windows here would let voice
@@ -92,7 +106,7 @@ def train_styler(
     holdout = sft.load_pairs(holdout_pairs, enc, config.seq_len)
     if not data.examples:
         raise CankarError(f"no usable pairs in {train_pairs}")
-    if config.rehearsal_frac > 0:
+    if config.uses_rehearsal:
         if not rehearsal_texts:
             raise CankarError(
                 f"rehearsal_frac is {config.rehearsal_frac} but no replay texts were passed - "
@@ -110,17 +124,19 @@ def train_styler(
         group["initial_lr"] = group["lr"] * config.lr_scale
         group["lr"] = group["initial_lr"]
     log.info(
-        "%s: from %s (step %d) | %d pairs -> %d examples (+%d replay) | %d target tokens "
-        "(%.1f%% replay) | %d steps/epoch | %d steps (%.1f epochs) | %d held-out | "
-        "lr_scale %.2f",
+        "%s: from %s (step %d) | %d pairs -> %d pair examples + %d replay = %d | "
+        "%d target tokens (%.1f%% replay by token, %.1f%% by optimizer step) | "
+        "%d steps/epoch | %d steps (%.1f epochs) | %d held-out | lr_scale %.2f",
         config.name,
         config.init_from,
         base.get("step", -1),
         data.n_pairs,
-        len(data.examples),
+        data.n_pair_examples,
         data.n_rehearsal,
+        len(data.examples),
         data.n_target_tokens,
         100 * data.rehearsal_token_frac,
+        100 * sft.rehearsal_step_frac(data, config.batch_size, config.seed),
         spe,
         total_steps,
         config.epochs,
@@ -134,12 +150,16 @@ def train_styler(
     out = checkpoints_dir / f"{config.name}.pt"
     model.train()
     step = 0
-    t0 = time.monotonic()
+    seen_tokens = 0  # real, not batch_size*seq_len: collate pads to the batch's
+    t0 = time.monotonic()  # own longest (median 194 vs 512), so the nominal
+    #                        figure overstates throughput ~2.6x - and this is
+    #                        the number GPU spend gets sized from.
     for epoch in range(int(config.epochs) + 1):
         for x, y in sft.iter_batches(data, config.batch_size, config.seed, epoch):
             if step >= total_steps:
                 break
             x, y = x.to(device), y.to(device)
+            seen_tokens += x.numel()
             mult = sft.lr_multiplier(step, total_steps, config)
             for group in optimizer.param_groups:
                 group["lr"] = group["initial_lr"] * mult
@@ -156,7 +176,7 @@ def train_styler(
                     total_steps,
                     loss.item(),
                     max(g["lr"] for g in optimizer.param_groups),
-                    (step + 1) * config.batch_size * config.seq_len / (time.monotonic() - t0),
+                    seen_tokens / (time.monotonic() - t0),
                 )
             if step and step % config.eval_every == 0:
                 log.info(
@@ -165,31 +185,55 @@ def train_styler(
                     evaluate(model, holdout, config.batch_size, device),
                 )
             if step and step % config.checkpoint_every == 0:
-                save_styler(out, model, base, config, step)
+                save_styler(out, model, base, config, step, data)
             step += 1
         if step >= total_steps:
             break
 
     final = evaluate(model, holdout, config.batch_size, device)
     log.info("held-out loss after training: %.4f", final)
-    save_styler(out, model, base, config, step)
+    save_styler(out, model, base, config, step, data)
     return out
 
 
-def save_styler(out: Path, model: GPT, base: dict, config: sft.SftConfig, step: int) -> Path:
+def save_styler(
+    out: Path,
+    model: GPT,
+    base: dict,
+    config: sft.SftConfig,
+    step: int,
+    data: sft.SftData | None = None,
+) -> Path:
     """Self-describing like every other checkpoint here (ADR 0017): the gptconfig
     is carried through from the base so anything loading this can rebuild it
-    without a config file."""
+    without a config file.
+
+    Records the REALIZED composition, not just the requested `rehearsal_frac`.
+    The whole argument of this stage is that requested and realized are different
+    numbers - the token share is what the config asks for, the step share is what
+    reaches the gradient - so a checkpoint carrying only the request would leave
+    the actual mix as a line of stdout on a machine that no longer exists.
+    """
     out.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(
-        {
-            "model": model.state_dict(),
-            "gptconfig": base["gptconfig"],
-            "config": config.model_dump(),
-            "step": step,
-            "init_from": config.init_from,
-            "base_step": base.get("step", -1),
-        },
-        out,
-    )
+    state: dict = {
+        "model": model.state_dict(),
+        "gptconfig": base["gptconfig"],
+        "config": config.model_dump(),
+        "step": step,
+        "init_from": config.init_from,
+        "base_step": base.get("step", -1),
+    }
+    if data is not None:
+        state["composition"] = {
+            "n_pairs": data.n_pairs,
+            "n_pair_examples": data.n_pair_examples,
+            "n_rehearsal": data.n_rehearsal,
+            "n_dropped_too_long": data.n_dropped_too_long,
+            "n_target_tokens": data.n_target_tokens,
+            "rehearsal_token_frac": data.rehearsal_token_frac,
+            "rehearsal_step_frac": sft.rehearsal_step_frac(data, config.batch_size, config.seed),
+        }
+    tmp = out.with_suffix(".pt.tmp")  # write-then-rename: a crash never leaves a torn file
+    torch.save(state, tmp)
+    tmp.replace(out)
     return out

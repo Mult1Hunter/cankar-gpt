@@ -41,10 +41,11 @@ from pathlib import Path
 import numpy as np
 import tiktoken
 import torch
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from cankar.core.encoding import bos_id
 from cankar.core.errors import CankarError
+from cankar.train import data
 
 log = logging.getLogger("cankar.train")
 
@@ -87,13 +88,21 @@ class SftData:
         return sum(e.n_target for e in self.examples)
 
     @property
-    def rehearsal_token_frac(self) -> float:
-        """Realized replay share of the SCORED tokens - the only honest unit.
+    def n_pair_examples(self) -> int:
+        return len(self.examples) - self.n_rehearsal
 
-        Not the share of examples: a replay window scores `seq_len` tokens while
-        the median pair scores 107, so an example-counted "10% mix" would be
-        roughly 35% of the actual loss. The requested fraction is checked against
-        this, not against a count of rows.
+    @property
+    def rehearsal_token_frac(self) -> float:
+        """Replay share of the SCORED TOKENS - a data-composition figure.
+
+        This is what `rehearsal_frac` sets, and it is NOT the share of the
+        gradient. `GPT.forward` reduces with `mean`, so every batch moves the
+        weights equally regardless of how many tokens it scored, and
+        `iter_batches` length-sorts - replay windows are all exactly seq_len+1
+        while pairs sit at p99 469, so the two kinds land in separate batches
+        almost perfectly (measured: 609 pure-pair, 127 pure-replay, 1 mixed).
+        The gradient share is therefore the EXAMPLE share. See
+        `rehearsal_step_frac`, which is the number to reason about.
         """
         total = self.n_target_tokens
         if total == 0:
@@ -194,12 +203,9 @@ def rehearsal_examples(
     """
     if n_windows <= 0:
         return []
+    # The same packer pretraining uses, not a lookalike - see permuted_stream.
+    stream = data.permuted_stream(data.TokenizedCorpus.build(texts, enc), seed)
     rng = np.random.default_rng(seed)
-    bos = bos_id(enc)
-    docs = [[bos, *enc.encode_ordinary(t)] for t in texts]
-    stream: list[int] = []
-    for i in rng.permutation(len(docs)):
-        stream.extend(docs[i])
     width = seq_len + 1  # +1: the (x, y) shift needs one token beyond the window
     n_avail = len(stream) // width
     if n_avail < n_windows:
@@ -209,7 +215,7 @@ def rehearsal_examples(
         )
     return [
         Example(
-            tokens=stream[p * width : (p + 1) * width],
+            tokens=[int(t) for t in stream[p * width : (p + 1) * width]],
             n_prompt=1,
             n_target=seq_len,
             is_rehearsal=True,
@@ -241,13 +247,13 @@ def with_rehearsal(
         n_rehearsal=len(windows),
     )
     log.info(
-        "rehearsal: %d windows over %d pair examples | %d scored tokens, %.1f%% replay "
-        "(requested %.1f%%)",
+        "rehearsal: %d windows over %d pair examples | tokens %.1f%% replay "
+        "(requested %.1f%%) | optimizer steps %.1f%% replay <- the effective weight",
         mixed.n_rehearsal,
-        len(data.examples),
-        mixed.n_target_tokens,
+        mixed.n_pair_examples,
         100 * mixed.rehearsal_token_frac,
         100 * config.rehearsal_frac,
+        100 * rehearsal_step_frac(mixed, config.batch_size, config.seed),
     )
     return mixed
 
@@ -271,6 +277,38 @@ def collate(batch: list[Example], pad_id: int) -> tuple[torch.Tensor, torch.Tens
     return torch.tensor(xs, dtype=torch.long), torch.tensor(ys, dtype=torch.long)
 
 
+def length_buckets(data: SftData, batch_size: int, seed: int, epoch: int) -> list[list[int]]:
+    """The grouping `iter_batches` emits, as indices.
+
+    Extracted because `rehearsal_step_frac` has to measure the SAME grouping.
+    Re-deriving it there broke on tie-breaking - this sorts a PERMUTED order, so
+    equal-length examples group by shuffle position, not by index - and a replay
+    share computed off a lookalike grouping is exactly the kind of number that
+    reads as authoritative while being wrong.
+    """
+    g = torch.Generator().manual_seed(seed + epoch)
+    order = torch.randperm(len(data.examples), generator=g).tolist()
+    by_len = sorted(order, key=lambda i: len(data.examples[i].tokens))
+    return [by_len[i : i + batch_size] for i in range(0, len(by_len), batch_size)]
+
+
+def rehearsal_step_frac(data: SftData, batch_size: int, seed: int, epoch: int = 0) -> float:
+    """Replay share of the OPTIMIZER STEPS - the effective mixing weight.
+
+    `GPT.forward` reduces with `mean`, so every batch moves the weights equally
+    regardless of how many tokens it scored, and length bucketing puts the
+    fixed-width replay windows in their own batches. The gradient share is
+    therefore the batch share, NOT the token share `rehearsal_frac` sets. At the
+    shipped settings a `rehearsal_frac` of 0.5 realizes about 0.17 here - which
+    is what puts this run inside the 5-20% band the literature quotes rather
+    than above it, as the token figure alone suggests.
+    """
+    groups = length_buckets(data, batch_size, seed, epoch)
+    if not groups:
+        return 0.0
+    return sum(any(data.examples[i].is_rehearsal for i in g) for g in groups) / len(groups)
+
+
 def iter_batches(
     data: SftData, batch_size: int, seed: int, epoch: int
 ) -> Iterator[tuple[torch.Tensor, torch.Tensor]]:
@@ -282,10 +320,9 @@ def iter_batches(
     shuffle is over BATCHES, which keeps order random without re-mixing lengths.
     """
     pad_id = 0
+    groups = length_buckets(data, batch_size, seed, epoch)
     g = torch.Generator().manual_seed(seed + epoch)
-    order = torch.randperm(len(data.examples), generator=g).tolist()
-    by_len = sorted(order, key=lambda i: len(data.examples[i].tokens))
-    groups = [by_len[i : i + batch_size] for i in range(0, len(by_len), batch_size)]
+    torch.randperm(len(data.examples), generator=g)  # keep the group-shuffle stream aligned
     for gi in torch.randperm(len(groups), generator=g).tolist():
         yield collate([data.examples[i] for i in groups[gi]], pad_id)
 
@@ -314,56 +351,67 @@ class SftConfig(BaseModel):
     tokenizer: str = "v8192"
     seed: int = 20260728
 
-    seq_len: int = 512  # p99 of the pair set is 469 tokens; 512 covers 99.9%
-    batch_size: int = 16
-    epochs: float = 3.0
+    seq_len: int = Field(default=512, gt=0)  # p99 of the pairs is 469; 512 covers 99.9%
+    batch_size: int = Field(default=16, gt=0)
 
-    # Fine-tuning, not pretraining. `setup_optimizer` builds SIX parameter
-    # groups with independently tuned rates (lm_head 4e-3, embedding 0.2,
-    # value_embeds 0.1, x0 0.5, smear 0.2, matrix 2e-3), so setting matrix_lr
-    # alone leaves the embedding group running ~1000x higher than intended -
-    # which is exactly the catastrophic forgetting this comment claimed to
-    # prevent, and did not (caught on the first GPU run, 2026-07-28).
-    #
-    # lr_scale multiplies EVERY group, preserving nanochat's tuned ratios
-    # between them while lowering the whole schedule. 0.1 is a tenth of the
-    # pretraining rates.
-    # Replay against catastrophic forgetting: this share of the SCORED tokens is
+    # 2, not 3. Held-out pair loss BOTTOMS at 2 epochs and rises after
+    # (1.187 -> 1.207 -> 1.248 -> 1.353 at 2/3/4/6) while BPB degrades
+    # monotonically throughout, so past 2 epochs both metrics get worse together
+    # - overfitting, not a trade. The 3.0 this shipped with was never measured.
+    epochs: float = Field(default=2.0, gt=0)
+
+    # Replay against catastrophic forgetting: this share of the SCORED TOKENS is
     # unconditional Cankar prose rather than a pair. Fine-tuning without it is
     # the highest-forgetting option available, and the first Phase 6 sweep paid
-    # for that - a perfectly monotonic frontier where every configuration that
-    # improved the mapping degraded held-out BPB, because BPB was measured after
-    # the fact and nothing in the objective defended it. Replay puts it back in
-    # the loss: the optimizer can no longer buy pair loss with voice, because
-    # voice is now part of what it is scoring.
+    # for that - a monotonic frontier where every configuration that improved the
+    # mapping degraded held-out BPB, because BPB was measured after the fact and
+    # nothing in the objective defended it. Replay puts it back in the loss.
     #
-    # Calibrated on a 16-cell grid (lr_scale x rehearsal_frac, 2 epochs) plus a
-    # saturation extension, against sweep 1's frozen no-rehearsal numbers -
-    # docs/style-transfer-rehearsal.md. Every replay cell beat its counterpart,
-    # and the benefit grew with the learning rate because there was more
-    # forgetting to prevent: at lr 0.3, replay recovered 84% of the BPB damage
-    # (+0.454 -> +0.071) while held-out pair loss moved 1.175 -> 1.192.
+    # Read `rehearsal_token_frac` before tuning this: the effective weight on the
+    # gradient is the STEP share, ~0.17 at a setting of 0.5.
     #
-    # 0.5 rather than the best-measured 0.65: the benefit had still not
-    # saturated at the top of the range, so the ceiling here is the corpus, not
-    # the method - 0.65 consumes 74% of the 5,395 windows Cankar's 2.77M tokens
-    # can supply, and any change to seq_len or the pair set would trip the
-    # pool-size guard. 0.5 takes nearly all the benefit with headroom.
+    # Calibrated on a 16-cell grid (lr_scale x this) plus saturation and epoch
+    # extensions, against sweep 1's frozen no-rehearsal numbers; protocol and
+    # full table in docs/style-transfer-rehearsal.md. Replay traded steeply in
+    # its favour at every learning rate, and the benefit grew with lr because a
+    # higher rate forgets more: at lr_scale 0.3 it recovered 84% of the BPB
+    # damage (+0.454 -> +0.071) for a 1.4% rise in pair loss (1.175 -> 1.192).
     #
-    # Note this is ABOVE the 5-20% band the literature quotes, because replay
-    # here is ADDED to the pair set rather than displacing part of it - every
-    # pair is still seen the same number of times at any fraction.
-    rehearsal_frac: float = 0.5
+    # 0.5 rather than the best-measured 0.65 because the benefit had not
+    # saturated at the top of the range - the ceiling here is corpus size, not
+    # the method. 0.65 consumes 70% of the 5,395 windows Cankar's 2.77M
+    # non-held-out tokens supply, leaving no headroom for a seq_len or pair-set
+    # change before `rehearsal_examples` refuses the run.
+    rehearsal_frac: float = Field(default=0.5, ge=0.0, lt=1.0)
 
-    lr_scale: float = 0.1
-    warmup_frac: float = 0.03
-    min_lr_frac: float = 0.1
-    weight_decay: float = 0.0
-    grad_clip: float = 1.0
+    # Fine-tuning, not pretraining. `setup_optimizer` builds SIX parameter groups
+    # with independently tuned rates (lm_head 4e-3, embedding 0.2, value_embeds
+    # 0.1, x0 0.5, smear 0.2, matrix 2e-3), so setting matrix_lr alone left the
+    # embedding group running ~1000x higher than intended - exactly the
+    # catastrophic forgetting it claimed to prevent (caught on the first GPU run,
+    # 2026-07-28). lr_scale multiplies EVERY group, preserving nanochat's tuned
+    # ratios while lowering the whole schedule.
+    #
+    # 0.3, not the 0.1 this shipped with: with replay defending the voice, the
+    # higher rate is better on BOTH axes (pair 1.187 vs 1.293, BPB +0.094 vs
+    # +0.100 at rehearsal_frac 0.5 / 0.2 respectively). Without replay 0.1 was
+    # the sane ceiling; the calibration moved it.
+    lr_scale: float = Field(default=0.3, gt=0)
+    warmup_frac: float = Field(default=0.03, ge=0.0, lt=1.0)
+    min_lr_frac: float = Field(default=0.1, ge=0.0, le=1.0)
+    weight_decay: float = Field(default=0.0, ge=0.0)
+    grad_clip: float = Field(default=1.0, gt=0)
 
-    log_every: int = 25
-    eval_every: int = 100  # held-out pair loss, the only honest progress signal
-    checkpoint_every: int = 250
+    log_every: int = Field(default=25, gt=0)
+    eval_every: int = Field(default=100, gt=0)  # held-out pair loss, the honest signal
+    checkpoint_every: int = Field(default=250, gt=0)
+
+    @property
+    def uses_rehearsal(self) -> bool:
+        """One place decides this - it was being re-derived in cli.py and the
+        loop, which is how the two would drift into disagreeing about whether a
+        run is mixing replay."""
+        return self.rehearsal_frac > 0.0
 
 
 def steps_per_epoch(data: SftData, batch_size: int) -> int:

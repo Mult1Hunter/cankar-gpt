@@ -3,6 +3,10 @@
 # No model-shape fields on purpose. SFT always fine-tunes an existing
 # checkpoint, so the shape is read from that checkpoint's own gptconfig
 # (ADR 0017) - a config cannot disagree with the weights it loads.
+#
+# Every value here is calibrated - see docs/style-transfer-rehearsal.md for the
+# grid and the protocol. This file is the committed record of the shipped run,
+# so it states the load-bearing knobs explicitly rather than inheriting them.
 name = "styler-v1"
 init_from = "cankar-v1"
 tokenizer = "v8192"
@@ -10,12 +14,24 @@ seed = 20260728
 
 seq_len = 512      # p99 of the pair set is 469 tokens; 512 covers 99.9%
 batch_size = 16
-epochs = 3.0
 
-# A tenth of EVERY pretraining rate. setup_optimizer tunes six groups
-# independently; scaling only the matrices left the embedding group ~1000x
-# too high, which is the catastrophic forgetting this was meant to prevent.
-lr_scale = 0.1
+# Held-out pair loss bottoms at 2 epochs and rises after (1.187 -> 1.207 ->
+# 1.248 -> 1.353 at 2/3/4/6) while BPB degrades throughout: past 2 both metrics
+# worsen together. Overfitting, not a trade.
+epochs = 2.0
+
+# Replay share of the SCORED TOKENS. The effective weight on the gradient is the
+# STEP share, ~0.17 here - inside the 5-20% band the literature quotes, which
+# the token figure alone does not show. Recovers 84% of the BPB damage this
+# learning rate would otherwise cause.
+rehearsal_frac = 0.5
+
+# A tenth of EVERY pretraining rate would be 0.1; with replay defending the
+# voice, 0.3 is better on BOTH axes (pair 1.187 vs 1.293, BPB +0.094 vs +0.100).
+# setup_optimizer tunes six groups independently; scaling only the matrices left
+# the embedding group ~1000x too high, which is the catastrophic forgetting this
+# was meant to prevent.
+lr_scale = 0.3
 warmup_frac = 0.03
 min_lr_frac = 0.1
 
