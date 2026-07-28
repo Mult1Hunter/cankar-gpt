@@ -4,7 +4,7 @@
 
 Corpus sha256 `d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b`.
 Held-out set sha256 `07ccca96a4fe339d50a9da9d38f71b4bcec98962e601d6460b633edca96331a2` (registry/evals/holdout.json).
-Scored on `cuda` at 2026-07-27T18:28:34+00:00 (git `9649d0d`).
+Scored on `cuda` at 2026-07-28T18:37:04+00:00 (git `918c4bb-dirty`).
 
 Bits per byte over the frozen held-out Cankar set (ADR 0013), every held-out
 token scored exactly once. Lower is better. **These are the numbers published
@@ -12,11 +12,20 @@ on the README badge, in the docs and on the landing page** -
 `tests/evals/test_bpb_claims.py` gates all of those against
 `registry/evals/bpb.json`, this file included.
 
+The first three rows are the pretraining progression, lower being better
+at each step. `styler-v1` is NOT a fourth step: it is a Phase 6 fine-tune
+for a different task (plain Slovene -> Cankar), so its number is voice
+RETENTION - how much of `cankar-v1`'s prose modelling survived learning the
+mapping. It is above `cankar-v1` by construction; the calibration that
+minimised that gap is in `docs/style-transfer-rehearsal.md`. Style-transfer
+quality is not measured here.
+
 | checkpoint | params | tokenizer | step | held-out BPB |
 |---|---:|---|---:|---:|
 | `tinycankar` | 15.2M | `v8192` | 4,000 | **2.2227** |
 | `base` | 26.3M | `v8192` | 26,000 | **1.5056** |
 | `cankar-v1` | 26.3M | `v8192` | 500 | **1.4508** |
+| `styler-v1` | 26.3M | `v8192` | 1,474 | **1.5449** |
 
 All rows scored over the same 50 held-out works (`score_canonical` raises otherwise).
 

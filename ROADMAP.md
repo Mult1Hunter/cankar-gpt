@@ -150,8 +150,19 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       spelling. Frozen manifest registry/evals/style.json (versions, seed,
       config, artifact sha - a scorer is not regenerable data). Deploy negative
       (modern de-styled Slovene) is unseen -> `deploy_validated: PENDING Phase 6`
-      (MF-3); the "Cankar vs plain Slovene" use is validated when Phase-5 pairs
-      exist. SloBERTa still deferred - now with a measured AUC to beat.
+      (MF-3). SloBERTa still deferred - now with a measured AUC to beat.
+- [x] **MF-3 RESOLVED, negatively (Phase 6):** `cankar evals deploy-check` measures
+      the classifier on the task it is DEPLOYED on rather than the one it was
+      trained on. Train-task AUC 0.993; **deploy AUC 0.650** - ranking a real
+      Cankar passage above its OWN de-styled pair, 285 held-out pairs, pairwise so
+      passage difficulty cancels. Decomposed via design invariant #1, which holds
+      register constant between de-styled Cankar and the modern drafts: the topic
+      effect (+0.536) is **4.2x** the style effect (+0.128). The classifier is
+      substantially a period/topic detector. The training confound audit could not
+      have caught this - every peer in its negative is also 1900s prose, so period
+      was held constant by construction and period features carried signal without
+      ever reading as topic. **No headline style claim may ride on it**;
+      directional signal only. registry/reports/style-deploy.md.
 - [ ] LLM-judge template for meaning preservation *(deferred to Phase 6 - needs Phase-5 pairs; building now is speculative)*
 - [ ] Dev set design: 200 held-out pairs **+ 50 fresh drafts**. Held-out half DONE:
       `cankar pairs segment/destyle --set holdout` -> **289 pairs** from the 12

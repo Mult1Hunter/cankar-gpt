@@ -263,3 +263,23 @@ file = "configs/train/styler-v1.toml"
 old = "rehearsal_frac = 0.5"
 new = "rehearsal_frac = 0.15"
 tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# The deploy verdict must be able to come out either way. Hardcoding VALIDATED
+# turns a measurement into a constant that always clears the gate it exists to
+# be blocked by.
+file = "cankar/evals/style.py"
+old = """            if auc >= DEPLOY_AUC_FLOOR and (mc - md) > (md - mm)
+            else DeployStatus.MEASURED_INADEQUATE"""
+new = """            if True
+            else DeployStatus.MEASURED_INADEQUATE"""
+tests = "tests/evals/test_style.py"
+
+[[mutation]]
+# A style scorer whose topic effect exceeds its style effect is measuring the
+# wrong thing, whatever its AUC. Dropping that condition would have passed the
+# real classifier on period vocabulary alone.
+file = "cankar/evals/style.py"
+old = "            if auc >= DEPLOY_AUC_FLOOR and (mc - md) > (md - mm)"
+new = "            if auc >= DEPLOY_AUC_FLOOR"
+tests = "tests/evals/test_style.py"

@@ -253,6 +253,14 @@ def style_report() -> Path:
     return repo_root() / "registry" / "reports" / "style.md"
 
 
+def style_deploy_report() -> Path:
+    """MF-3: the classifier measured on its DEPLOY task rather than its training
+    task. Separate from style_report() because it answers a different question
+    with different data - and because the training audit, being blind to period,
+    could not have reached this one."""
+    return repo_root() / "registry" / "reports" / "style-deploy.md"
+
+
 def style_model(name: str) -> Path:
     """Trained classifier artifact (joblib). Heavy binary -> checkpoints/ is
     gitignored; the manifest pins its sha256 + a reproducibility contract."""

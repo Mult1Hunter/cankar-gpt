@@ -5,11 +5,13 @@ Registered under the single `cankar` console entry (ADR 0007):
     cankar evals style-train                       # train the style classifier (ADR 0015)
     cankar evals bpb --checkpoint <path>           # held-out BPB for a checkpoint (ADR 0017)
     cankar evals bpb-freeze                        # score the canonical set, commit provenance
+    cankar evals deploy-check                      # is the style scorer fit for deploy? (MF-3)
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 from pathlib import Path
 
@@ -26,12 +28,16 @@ from cankar.core.manifest import (
     write_manifest,
 )
 from cankar.core.paths import (
+    PairSet,
     bpb_manifest,
     bpb_report,
     checkpoints_dir,
+    drafts_shard,
     holdout_manifest,
     holdout_report,
     merged_shard,
+    pairs_shard,
+    style_deploy_report,
     style_manifest,
     style_model,
     style_report,
@@ -166,6 +172,44 @@ def _bpb_freeze(args: argparse.Namespace) -> int:
     return 0
 
 
+def _deploy_check(args: argparse.Namespace) -> int:
+    """MF-3: the classifier was trained on 1900s prose vs 1900s prose, and is
+    deployed against modern plain Slovene. Measure it there before any claim
+    rides on it."""
+    from cankar.evals.style import deploy_check, load_style_manifest, write_deploy_report
+
+    manifest = load_style_manifest(style_manifest())
+    model = joblib.load(style_model(args.name))
+
+    pairs = [
+        json.loads(x) for x in pairs_shard(PairSet.HOLDOUT).open(encoding="utf-8") if x.strip()
+    ]
+    drafts = [
+        json.loads(x)
+        for x in drafts_shard().open(encoding="utf-8")
+        if x.strip() and json.loads(x)["arm"] == "register"
+    ]
+    check = deploy_check(
+        model,
+        cankar=[r["cankar"] for r in pairs],
+        destyled=[r["plain"] for r in pairs],
+        modern=[d["text"] for d in drafts],
+    )
+    write_deploy_report(
+        style_deploy_report(), check, manifest.metrics.roc_auc_mean, manifest.corpus_sha256
+    )
+    log.info(
+        "deploy check: AUC %.3f (train task %.3f) | style effect %+.3f vs topic effect %+.3f -> %s",
+        check.deploy_auc,
+        manifest.metrics.roc_auc_mean,
+        check.style_effect,
+        check.topic_effect,
+        check.verdict.value,
+    )
+    log.info("-> %s", style_deploy_report())
+    return 0
+
+
 def register(parser: argparse.ArgumentParser) -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -183,6 +227,13 @@ def register(parser: argparse.ArgumentParser) -> None:
     b.add_argument("--checkpoint", type=Path, required=True, help="a cankar train checkpoint (.pt)")
     b.add_argument("--device", default=None, help="cuda/cpu (default: auto)")
     b.set_defaults(func=_bpb)
+
+    d = sub.add_parser(
+        "deploy-check",
+        help="measure the style classifier on its DEPLOY task, not its training task (MF-3)",
+    )
+    d.add_argument("--name", default="v1", help="classifier artifact suffix")
+    d.set_defaults(func=_deploy_check)
 
     f = sub.add_parser(
         "bpb-freeze",

@@ -166,6 +166,14 @@ class CanonicalCheckpoint(StrEnum):
     TINYCANKAR = "tinycankar"
     BASE = "base"
     CANKAR_V1 = "cankar-v1"
+    # Phase 6. NOT a further step in the pretraining progression - it is a
+    # fine-tune for a different task, and its BPB is a voice-RETENTION figure:
+    # how much of cankar-v1's prose modelling survived learning the mapping.
+    # Read as a progression row it says "worse", which is true and beside the
+    # point. It is frozen here because it is the number the rehearsal
+    # calibration optimized (docs/style-transfer-rehearsal.md) and a quality
+    # claim rides on it.
+    STYLER_V1 = "styler-v1"
 
 
 class CheckpointBpb(BaseModel):
@@ -274,6 +282,14 @@ def write_bpb_report(out: Path, manifest: BpbManifest) -> Path:
         "on the README badge, in the docs and on the landing page** -",
         "`tests/evals/test_bpb_claims.py` gates all of those against",
         "`registry/evals/bpb.json`, this file included.",
+        "",
+        "The first three rows are the pretraining progression, lower being better",
+        "at each step. `styler-v1` is NOT a fourth step: it is a Phase 6 fine-tune",
+        "for a different task (plain Slovene -> Cankar), so its number is voice",
+        "RETENTION - how much of `cankar-v1`'s prose modelling survived learning the",
+        "mapping. It is above `cankar-v1` by construction; the calibration that",
+        "minimised that gap is in `docs/style-transfer-rehearsal.md`. Style-transfer",
+        "quality is not measured here.",
         "",
         "| checkpoint | params | tokenizer | step | held-out BPB |",
         "|---|---:|---|---:|---:|",

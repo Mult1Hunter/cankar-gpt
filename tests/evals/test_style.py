@@ -176,3 +176,69 @@ def test_manifest_round_trip(tmp_path: Path) -> None:
 def test_load_style_manifest_missing_raises(tmp_path: Path) -> None:
     with pytest.raises(CankarError, match="not frozen"):
         style.load_style_manifest(tmp_path / "nope.json")
+
+
+# --- MF-3: the scorer measured on its DEPLOY task ----------------------------
+
+
+class _FakeModel:
+    """Returns a fixed P(Cankar) per text, so the decomposition arithmetic is
+    checkable without a trained artifact (the real one is gitignored)."""
+
+    def __init__(self, scores: dict[str, float]):
+        self.scores = scores
+
+    def predict_proba(self, texts):
+        import numpy as np
+
+        p = np.array([self.scores[t] for t in texts])
+        return np.column_stack([1 - p, p])
+
+
+def test_a_topic_driven_scorer_is_called_inadequate() -> None:
+    """The real failure: the classifier separates 1900s prose from modern prose
+    far better than it separates Cankar from de-styled Cankar. A scorer whose
+    topic effect dwarfs its style effect cannot carry a style claim, however
+    good its training AUC was."""
+    from cankar.evals.style import DeployStatus, deploy_check
+
+    scores = {"c1": 0.80, "c2": 0.72, "d1": 0.66, "d2": 0.58, "m1": 0.09, "m2": 0.11}
+    check = deploy_check(_FakeModel(scores), ["c1", "c2"], ["d1", "d2"], ["m1", "m2"])
+
+    assert check.style_effect == pytest.approx(0.14, abs=1e-6)
+    assert check.topic_effect == pytest.approx(0.52, abs=1e-6)
+    assert check.topic_effect > check.style_effect
+    assert check.verdict is DeployStatus.MEASURED_INADEQUATE
+
+
+def test_a_genuinely_style_driven_scorer_validates() -> None:
+    """The gate must be able to return VALIDATED, or it is a constant dressed as
+    a measurement. Same shape, but the style effect now dominates and every real
+    Cankar passage outranks every de-styled one."""
+    from cankar.evals.style import DeployStatus, deploy_check
+
+    scores = {"c1": 0.95, "c2": 0.92, "d1": 0.20, "d2": 0.15, "m1": 0.10, "m2": 0.08}
+    check = deploy_check(_FakeModel(scores), ["c1", "c2"], ["d1", "d2"], ["m1", "m2"])
+
+    assert check.deploy_auc == 1.0
+    assert check.style_effect > check.topic_effect
+    assert check.verdict is DeployStatus.VALIDATED
+
+
+def test_deploy_auc_is_pairwise_not_thresholded() -> None:
+    """Ranking a Cankar passage above its own de-styled counterpart is the
+    deploy question; a 0.5 cutoff would instead measure calibration, which is
+    not what is being asked and moves with passage difficulty."""
+    from cankar.evals.style import deploy_check
+
+    # every score sits above 0.5, so any thresholded accuracy would read 100%
+    scores = {"c1": 0.60, "c2": 0.90, "d1": 0.70, "d2": 0.80, "m1": 0.55, "m2": 0.55}
+    check = deploy_check(_FakeModel(scores), ["c1", "c2"], ["d1", "d2"], ["m1", "m2"])
+    assert check.deploy_auc == pytest.approx(0.5, abs=1e-6)
+
+
+def test_a_missing_series_is_not_treated_as_zero() -> None:
+    from cankar.evals.style import deploy_check
+
+    with pytest.raises(CankarError, match="all three series"):
+        deploy_check(_FakeModel({"c1": 0.9}), ["c1"], [], ["c1"])
