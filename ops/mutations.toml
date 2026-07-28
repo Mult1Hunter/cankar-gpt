@@ -176,3 +176,90 @@ file = "cankar/pairs/destyle.py"
 old = "    return difflib.SequenceMatcher(None, source, output, autojunk=False).ratio()"
 new = "    return difflib.SequenceMatcher(None, source, output).ratio()"
 tests = "tests/pairs/test_destyle.py"
+
+[[mutation]]
+# Training CE falls whether or not the model learns the mapping - the target
+# side is Cankar's own prose, so a checkpoint that already speaks Cankar scores
+# well by ignoring the prompt. Held-out pair loss is the only signal that tells
+# those apart, and the loop asserts it drops.
+file = "cankar/train/sft_loop.py"
+old = "        total += model(x, targets=y).item() * scored"
+new = "        total += model(x, targets=y).item()"
+tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# SFT must rebuild from the checkpoint's OWN gptconfig. Silently defaulting a
+# shape would load weights into the wrong model.
+file = "cankar/train/sft_loop.py"
+old = '    if "gptconfig" not in state:'
+new = "    if False:"
+tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# The replay window's whole purpose is that every position is scored. Masking
+# it out leaves a run that reports a healthy rehearsal mix, trains pair-only,
+# and reads as evidence that rehearsal does not work.
+file = "cankar/train/sft.py"
+old = """            n_prompt=1,
+            n_target=seq_len,"""
+new = """            n_prompt=seq_len,
+            n_target=seq_len,"""
+tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# The replay share is defined on SCORED TOKENS, not rows: a window scores
+# seq_len of them against a pair's ~107, so a row-counted mix lands several
+# times heavier in the loss than the number in the config says.
+file = "cankar/train/sft.py"
+old = "        return sum(e.n_target for e in self.examples if e.is_rehearsal) / total"
+new = "        return sum(1 for e in self.examples if e.is_rehearsal) / len(self.examples)"
+tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# A pool too small to serve the requested windows must fail, not quietly train
+# at a rehearsal fraction nobody chose.
+file = "cankar/train/sft.py"
+old = "    if n_avail < n_windows:"
+new = "    if False:"
+tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# rehearsal_frac set with no replay texts must fail loud - a silently pair-only
+# run is indistinguishable from rehearsal that did not help.
+file = "cankar/train/sft_loop.py"
+old = "    if config.uses_rehearsal and not rehearsal_texts:"
+new = "    if False:"
+tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# pydantic ignores unknown keys by default, so a renamed field in a TOML reads
+# as set while the run silently uses the default.
+file = "cankar/train/sft.py"
+old = '    model_config = ConfigDict(extra="forbid")'
+new = '    model_config = ConfigDict(extra="ignore")'
+tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# The step share is the effective mixing weight and must be measured off the
+# SAME grouping the batcher emits. Counting only pure-replay batches understates
+# it; the reported number would look authoritative and be wrong.
+file = "cankar/train/sft.py"
+old = "    return sum(any(data.examples[i].is_rehearsal for i in g) for g in groups) / len(groups)"
+new = "    return sum(all(data.examples[i].is_rehearsal for i in g) for g in groups) / len(groups)"
+tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# A seq_len past the base checkpoint's trained length dies on a bare assert
+# inside GPT.forward, mid-run on a rented pod, after the data is loaded.
+file = "cankar/train/sft_loop.py"
+old = "    if seq_len is not None and trained_len is not None and seq_len > trained_len:"
+new = "    if False:"
+tests = "tests/train/test_sft.py"
+
+[[mutation]]
+# The committed preset is the record of the shipped run. If nothing loads it,
+# extra="forbid" never fires and a typo surfaces on the GPU instead of in CI.
+file = "configs/train/styler-v1.toml"
+old = "rehearsal_frac = 0.5"
+new = "rehearsal_frac = 0.15"
+tests = "tests/train/test_sft.py"

@@ -13,20 +13,28 @@ enumeration question would have caught it).
 ## The brief (~10 lines, no ceremony)
 
 1. **Goal** - one sentence.
-2. **Inputs/outputs** - types, schemas, where artifacts land.
-3. **Data classes** - ENUMERATE every kind of input this code will meet
+2. **Prior art** - name the STANDARD approach for this class of problem, checked
+   and cited, not recalled. Then say which one you are taking and what you are
+   rejecting. Skip only when there is no established practice to check.
+   This line exists because Phase 6 shipped a full fine-tune with no rehearsal -
+   the option with the worst known forgetting behaviour - and then spent a
+   learning-rate sweep managing the damage. The implementation details were
+   researched; the *approach* was assumed. One search would have caught it
+   (2026-07-28).
+3. **Inputs/outputs** - types, schemas, where artifacts land.
+4. **Data classes** - ENUMERATE every kind of input this code will meet
    (for corpus text: prose, verse, drama, catalogs/indexes, OCR noise,
    mixed-language, ...). This line is the whole point: name the class you
    have not thought about yet.
-4. **Failure modes + blast radius** - what breaks if this is wrong, and what
+5. **Failure modes + blast radius** - what breaks if this is wrong, and what
    it contaminates downstream (e.g. misattribution poisons the style
    classifier).
-5. **Placement** - which stage subpackage (ADR 0007); what
+6. **Placement** - which stage subpackage (ADR 0007); what
    existing code it reuses.
-6. **Validation plan** - what proves it works BEFORE it ships. Heuristics and
+7. **Validation plan** - what proves it works BEFORE it ships. Heuristics and
    thresholds: the calibration rule (ADR 0006) applies - labeled REAL examples
    of every enumerated class, which then become regression fixtures.
-7. **Out of scope** - what this deliberately does not handle, recorded.
+8. **Out of scope** - what this deliberately does not handle, recorded.
 
 ## Architect critique (new-subsystem scale)
 

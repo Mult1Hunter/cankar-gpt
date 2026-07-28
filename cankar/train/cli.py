@@ -1,6 +1,7 @@
 """Train-stage CLI (ADR 0007): the only argparse holder for this stage.
 
 cankar train run   [--config configs/train/tinycankar.toml] [--resume]
+cankar train sft   [--config configs/train/styler-v1.toml]   # Phase 6
 cankar train sample --checkpoint checkpoints/tinycankar.pt [--prompt ...]
 """
 
@@ -12,10 +13,20 @@ from pathlib import Path
 
 import torch
 
-from cankar.core.paths import checkpoints_dir, train_config
-from cankar.train.config import load_train_config
+from cankar.core.paths import (
+    PairSet,
+    checkpoints_dir,
+    chunks_manifest,
+    chunks_shard,
+    holdout_manifest,
+    pairs_shard,
+    train_config,
+)
+from cankar.train.config import load_sft_config, load_train_config
+from cankar.train.data import cankar_chunk_texts
 from cankar.train.loop import train
 from cankar.train.sample import sample_from_checkpoint
+from cankar.train.sft_loop import train_styler
 
 log = logging.getLogger("cankar.train")
 
@@ -33,6 +44,31 @@ def _run(args: argparse.Namespace) -> int:
     device = _device(args.device)
     log.info("training on %s", device)
     train(config, checkpoints_dir(), device, resume=args.resume, init_from=args.init_from)
+    return 0
+
+
+def _sft(args: argparse.Namespace) -> int:
+    """Phase 6: fine-tune the Cankar voice onto a plain-Slovene prompt."""
+    config = load_sft_config(args.config)
+    device = _device(args.device)
+    log.info("style-transfer SFT on %s", device)
+    # Resolved here rather than inside the loop: this is the layer that owns
+    # artifact paths, and cankar_chunk_texts carries the holdout exclusion and
+    # the corpus-revision check with it.
+    replay = (
+        cankar_chunk_texts(chunks_shard(), holdout_manifest(), chunks_manifest())
+        if config.uses_rehearsal
+        else None
+    )
+    out = train_styler(
+        config,
+        pairs_shard(PairSet.TRAIN),
+        pairs_shard(PairSet.HOLDOUT),
+        checkpoints_dir(),
+        device,
+        rehearsal_texts=replay,
+    )
+    log.info("styler -> %s", out)
     return 0
 
 
@@ -71,6 +107,14 @@ def register(parser: argparse.ArgumentParser) -> None:
     )
     r.add_argument("--device", default=None, help="cuda/cpu (default: auto)")
     r.set_defaults(func=_run)
+
+    f = sub.add_parser("sft", help="Phase 6: style-transfer fine-tune on the pairs")
+    # Defaults to the committed preset, matching `train run`. One file = one
+    # reproducible run (configs/README.md, ADR 0003) - a bare `cankar train sft`
+    # must not quietly diverge from the record of the shipped run.
+    f.add_argument("--config", type=Path, default=train_config("styler-v1"))
+    f.add_argument("--device", default=None, help="cuda/cpu (default: auto)")
+    f.set_defaults(func=_sft)
 
     s = sub.add_parser("sample", help="generate text from a trained checkpoint")
     s.add_argument("--checkpoint", type=Path, default=checkpoints_dir() / "tinycankar.pt")

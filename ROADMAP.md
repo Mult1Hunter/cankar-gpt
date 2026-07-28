@@ -267,7 +267,17 @@ Do not build serving or the Laravel orchestrator before the styler exists.
 
 ## Phase 6 - Style-transfer SFT (hours)
 
-- [ ] Adapt nanochat's SFT stage to `<plain> ... <cankar> ...` format
+- [x] Adapt nanochat's SFT stage to `<plain> ... <cankar> ...` format - built as
+      `cankar/train/sft.py` + `sft_loop.py`, using the tokenizer's EXISTING chat
+      specials rather than the invented markers sketched here (`<plain>` is not
+      in the v8192 vocabulary, so it would fragment into ordinary tokens the
+      model must spend capacity learning to read as a boundary)
+- [x] **Rehearsal against catastrophic forgetting** *(added in-flight)* - the
+      first lr sweep produced a monotonic Pareto frontier and it was read as a
+      capacity wall; it was a method error. Replay mixed into the objective
+      recovers up to 84% of the BPB damage while held-out pair loss moves ~1%,
+      and the best cell strictly dominates the old best on both axes at once.
+      Numbers and the two things it does not show: `docs/style-transfer-rehearsal.md`
 - [ ] Evaluate on held-out pairs AND fresh drafts (the gap between the two is the honest headline number)
 - [ ] Product framing (A3): this is a **prose-poem / črtica styler**, not a poem generator - brand it honestly
 
