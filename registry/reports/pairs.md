@@ -5,10 +5,10 @@
 Corpus sha256 `d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b`.
 Passages sha256 `e1cad3a2643782f9a1e523c883db7d9ce9f4a0fb82142472d6f4c2f6cb3c7438` (data/pairs/passages.jsonl).
 Register sha256 `cec36eb07e77c6d99076ad98ce176c0c097827f6ecdc70ee274b4547be6d985d` (cankar/core/register.py).
-Pairs sha256 `16b83a4dce791773b390e7de3a3dd3028400938318f006eeb0bc92f44899719b` (data/pairs/pairs.jsonl).
-Model `claude-sonnet-5`, de-styler v1, at 2026-07-28T12:07:36+00:00 (git `abddc4c`).
+Pairs sha256 `c387b33c7d036b95d681baa8a633af9f986cc7e5d84ca1069a16d0ab7cf9c429` (data/pairs/pairs.jsonl).
+Model `claude-sonnet-5`, de-styler v1, at 2026-07-28T12:37:21+00:00 (git `8dabaa7-dirty`).
 
-**10,043 pairs** from 10,049 responses (6,485,606 in / 1,703,920 out tokens).
+**9,950 pairs** from 10,049 responses (6,423,465 in / 1,686,013 out tokens).
 
 The Cankar side is untouched public-domain text; the plain side is
 generated. Pairs train `plain -> cankar`.
@@ -20,24 +20,26 @@ raw log is what a resumed run subtracts against.
 
 | reason | count |
 |---|---:|
-| `length_outlier` | 6 |
+| `foreign_script` | 84 |
+| `identity` | 10 |
+| `length_outlier` | 5 |
 
 ## Samples
 
-**Milan in Milena**
+**Za križem**
 
-- cankar: „Prav je govorila teta Fani!“ je rekla nezavedno; in prav tako nezavedno je stopila k ogledalu, da bi ubogljivo pogledala, kako malo se ji podá „ta komedija“. Videla je ozek, bel, od notranjega plamena razpaljen obraz, velike, sijajne oči, ustnice debele, trudne, kakor nasičene od poljubov; in zraven je videla gladko, oblizano frizuro na kmečko prečo, videla je nagubano, sramežljivo, črno obleko, podobno oblekam tistih tercijalk, ki čakajo ob polu petih zjutraj pred vratmi frančiškanske cerkve, in videla je na svojih napol pritajenih, stisnjenih prsih svetlo, srebrno svetinjo na širokem modrem traku.
-- plain: »Prav je govorila teta Fani!« je rekla nezavedno; in prav tako nezavedno je stopila k ogledalu, da bi vendarle videla, kako malo ji ta »komedija« pristaja. Videla je ozek, bled obraz, razgret od notranjega ognja, velike, sijoče oči, polne, utrujene ustnice, kot bi bile nasičene od poljubov; poleg tega je videla gladko, priglajeno frizuro na kmečko potezo, videla je nagubano, skromno, črno obleko, podobno oblekam tistih redovnic, ki čakajo ob pol petih zjutraj pred vrati frančiškanske cerkve, in videla je na svojih napol skritih, stisnjenih prsih svetlo, srebrno svetinjo na širokem modrem traku.
+- cankar: „Glej ... lačen sem bil, kruha sem prosil in so mi dali kamen, ribe sem prosil in so mi dali gada, jajca sem prosil in so mi dali škorpijona ... Zdaj pa, ko bom že skoro sit na vekomaj, zdaj mi kažejo rumen kolač. Celo dolgo življenje ugiblje človek: ali je kraj na svetu, kamor sije solnce? Sama tema, sam neprijazen mrak ... In ko se oči zapirajo, da bi trudne zaspale, posije nenadoma solnce! Dolga leta v ječi uklenjen, po loki zeleni hrepeneč — in ko so noge slabe, ko je život bolan, počitka željan, ne svobode, se odpro duri brez potrebe ...“
+- plain: "Glej ... lačen sem bil, kruha sem prosil in so mi dali kamen, ribe sem prosil in so mi dali gada, jajca sem prosil in so mi dali škorpijona ... Zdaj pa, ko bom kmalu sit za vedno, mi zdaj kažejo rumen kolač. Celo življenje človek ugiba: ali obstaja kraj na svetu, kamor sije sonce? Samo tema, samo neprijazen mrak ... In ko se oči zapirajo, da bi utrujene zaspale, nenadoma posije sonce! Dolga leta zaprt v ječi, hrepeneč po zeleni loki — in ko so noge šibke, ko je telo bolno in si želi počitka, ne svobode, se vrata odprejo brez potrebe ..."
 
-**V samoti**
+**Za križem**
 
-- cankar: Kakor berač, s plahimi, neodločnimi koraki, je stopil v vežo in je odprl duri. Za mizo je stala debela ženska in je umivala kozarce. Izba je bila toplo zakurjena in prijetna gorkota je spreletela popotnika po životu, prevzela ga je tako močno, da se mu je zameglilo pred očmi.
-- plain: Kakor berač je z boječimi, negotovimi koraki stopil v vežo in odprl vrata. Za mizo je stala debela ženska in umivala kozarce. Izba je bila topla in prijetna gorkota je spreletela popotnika po telesu, prevzela ga je tako močno, da se mu je zamglilo pred očmi.
+- cankar: Dalje je romal z butaro, še trikrat je počival. Zakaj časih se mu je nenadoma čudno zazibalo pred očmi, kakor da bi strmel v prevročo luč, in kolena so se mu zašibila. Tedaj je urno zvrnil butaro raz pleča, ker je vzrasla kakor gora. Trikrat je počival, solnce pa je hitelo, prihitelo je že skoro do gozda. Jureta je bilo strah, ko je sopel pod bremenom zmerom nižje v vas. Srce je bilo zmerom bolj malodušno, v život pa mu je bilo mraz, dasi je bil vzduh topel in soparen.
+- plain: Naprej je hodil z butaro na hrbtu, pa se je še trikrat ustavil in počil. Včasih se mu je namreč nenadoma nekako čudno zazibalo pred očmi, kakor da bi zrl v premočno luč, in kolena so mu opešala. Takrat je hitro vrgel butaro s pleč, ker je postala kot gora. Trikrat se je torej ustavil, sonce pa je hitelo naprej in bilo je že skoraj pri gozdu. Jureta je bilo strah, ko je pod bremenom vse bolj sključen hodil proti vasi. Srce mu je bilo vse bolj potrto, po telesu pa je čutil mraz, čeprav je bil zrak topel in vlažen.
 
-**Novela doktorja Grudna**
+**Zgodbe iz doline šentflorjanske**
 
-- cankar: Stal sem na pragu in sem si zavihal ovratnik, ker mi je bilo hladno; tudi v glavi mi je šumelo. Drevje je bilo rosno, zaspano so se pomikali sivi oblaki na zahodno stran; popili so bili zarjo in le časih je kanila izza njih žareča kaplja ter ugasnila v vlažnem vzduhu. Na pesku pred vrtom je zahreščal pesek pod kolesi, nekdo je zaklical in voz je prišel mimo.
-- plain: Stal sem na pragu in si zavihal ovratnik, ker mi je bilo hladno; tudi v glavi mi je šumelo. Drevje je bilo rosno, sivi oblaki so se počasi pomikali proti zahodu; vpili so vase zarjo in le vsake toliko je izza njih padla žareča kaplja ter ugasnila v vlažnem zraku. Na pesku pred vrtom je zaškripalo pod kolesi, nekdo je zaklical in mimo je pripeljal voz.
+- cankar: Zvečer so sedeli možje v krčmi in so ugibali; celo dacar je rajši molčal, nego da bi izpregovoril prvo besedo. Zakaj tako je bilo v tistih časih, da je že pogled izdajal človeka, kaj šele glas. Gledali so na mizo in so pili; samo učitelj Šviligoj je časih stresel z glavo in je zavzdihnil: kesanje njegovo je bilo vse globlje, kajti on je bil razmaknil leševje.
+- plain: Zvečer so moški sedeli v krčmi in ugibali; tudi davkar je raje molčal, kot da bi izrekel prvo besedo. Takrat je bilo namreč tako, da je človeka izdal že pogled, kaj šele glas. Gledali so v mizo in pili; le učitelj Šviligoj je včasih zmajal z glavo in zavzdihnil: njegovo kesanje je bilo vse globlje, saj je bil on tisti, ki je razmaknil listje.
 
 ## Reproducing
 

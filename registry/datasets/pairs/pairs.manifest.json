@@ -5,22 +5,25 @@
   "corpus_sha256": "d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b",
   "passages_sha256": "e1cad3a2643782f9a1e523c883db7d9ce9f4a0fb82142472d6f4c2f6cb3c7438",
   "register_sha256": "cec36eb07e77c6d99076ad98ce176c0c097827f6ecdc70ee274b4547be6d985d",
-  "pairs_sha256": "16b83a4dce791773b390e7de3a3dd3028400938318f006eeb0bc92f44899719b",
+  "pairs_sha256": "c387b33c7d036b95d681baa8a633af9f986cc7e5d84ca1069a16d0ab7cf9c429",
   "batch_ids": [
     "msgbatch_01SKCJtztp6R6Qh52dYp77JH",
-    "msgbatch_01HNB8ZdNrf9MogWzy7PABAD"
+    "msgbatch_01HNB8ZdNrf9MogWzy7PABAD",
+    "msgbatch_01Kg1bZBnKyQxMEuS6S8RjQc"
   ],
-  "git_sha": "abddc4c",
-  "created_at": "2026-07-28T12:07:36+00:00",
+  "git_sha": "8dabaa7-dirty",
+  "created_at": "2026-07-28T12:37:21+00:00",
   "lib_versions": {
     "anthropic_version": "0.120.0"
   },
-  "n_requested": 50,
-  "n_pairs": 10043,
-  "n_rejected": 6,
+  "n_requested": 10050,
+  "n_pairs": 9950,
+  "n_rejected": 99,
   "reject_counts": {
-    "length_outlier": 6
+    "identity": 10,
+    "foreign_script": 84,
+    "length_outlier": 5
   },
-  "in_tokens": 6485606,
-  "out_tokens": 1703920
+  "in_tokens": 6423465,
+  "out_tokens": 1686013
 }
