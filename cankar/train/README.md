@@ -21,7 +21,8 @@ comes via `core.encoding`, the held-out exclusion set via `core.holdout`.
   signal, scored on pairs only.
 - `sample.py` - generate from a checkpoint (rebuilds the model from its config).
 - `cli.py` - `cankar train run [--config ...] [--resume]`,
-  `cankar train sft [--config ...]`, `cankar train sample --checkpoint ...`.
+  `cankar train sft [--config ...]`, `cankar train style` (styler output ->
+  JSONL for the evals judge), `cankar train sample --checkpoint ...`.
 
 Checkpoints land in `checkpoints/` (gitignored). CPU runs (smoke); the real
 TinyCankar run is on a GPU - the loop prints tokens/sec in the first ~minute

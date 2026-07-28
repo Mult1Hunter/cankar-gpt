@@ -271,6 +271,7 @@ def test_a_deploy_verdict_does_not_follow_retrained_weights(tmp_path) -> None:
                     "style_effect": 0.7,
                     "topic_effect": 0.1,
                     "deploy_auc": 1.0,
+                    "paired_auc": 1.0,
                     "verdict": DeployStatus.VALIDATED.value,
                 },
             }
@@ -286,3 +287,63 @@ def test_a_missing_deploy_record_reads_as_pending(tmp_path) -> None:
     from cankar.evals.style import DeployStatus, deploy_status_for
 
     assert deploy_status_for(tmp_path / "nope.json", "a" * 64) is DeployStatus.PENDING_PHASE6
+
+
+def test_unaligned_series_are_rejected() -> None:
+    """The paired AUC assumes index i of each list is the SAME passage. Without
+    this the report can claim "its own de-styled pair" over series that were
+    never paired - which is how the unpaired statistic got published under the
+    paired description."""
+    from cankar.evals.style import deploy_check
+
+    with pytest.raises(CankarError, match="aligned series"):
+        deploy_check(_FakeModel({"a": 0.9, "b": 0.2, "m": 0.1}), ["a", "b"], ["b"], ["m"])
+
+
+def test_paired_and_unpaired_auc_are_different_statistics() -> None:
+    """They answer different questions and the real classifier splits them 0.87
+    vs 0.65. A fixture where each Cankar passage beats its OWN pair but loses to
+    others must show paired 1.0 and unpaired below it."""
+    from cankar.evals.style import deploy_check
+
+    scores = {"c1": 0.40, "c2": 0.90, "d1": 0.30, "d2": 0.80, "m1": 0.05, "m2": 0.05}
+    check = deploy_check(_FakeModel(scores), ["c1", "c2"], ["d1", "d2"], ["m1", "m2"])
+    assert check.paired_auc == 1.0, "each beats its own pair"
+    assert check.deploy_auc < check.paired_auc, "c1 loses to d2 across passages"
+
+
+def test_the_deploy_auc_floor_is_the_line_it_claims_to_be() -> None:
+    """ADR 0006: a threshold no test sits either side of can be set to anything
+    and the suite stays green. Every other fixture here reaches its verdict via
+    the style-vs-topic condition, leaving DEPLOY_AUC_FLOOR unexercised.
+
+    Both cases hold `style effect > topic effect` true, so the AUC condition is
+    the ONLY thing deciding them.
+    """
+    from cankar.evals.style import DEPLOY_AUC_FLOOR, DeployStatus, deploy_check
+
+    assert DEPLOY_AUC_FLOOR == 0.85
+
+    # 4x4 = 16 comparisons. Spread the de-styled scores so each Cankar passage
+    # wins a countable number of them.
+    destyled = {"d0": 0.30, "d1": 0.40, "d2": 0.60, "d3": 0.70}
+
+    # 14/16 = 0.875, just above the floor
+    above = {"c0": 0.65, "c1": 0.65, "c2": 0.75, "c3": 0.75} | destyled
+    above |= {f"m{i}": 0.35 for i in range(4)}  # style +0.20 > topic +0.15
+    got = deploy_check(
+        _FakeModel(above), ["c0", "c1", "c2", "c3"], list(destyled), [f"m{i}" for i in range(4)]
+    )
+    assert got.deploy_auc == pytest.approx(0.875)
+    assert got.style_effect > got.topic_effect
+    assert got.verdict is DeployStatus.VALIDATED
+
+    # 12/16 = 0.75, just below it - same shape, one notch down
+    below = {"c0": 0.65, "c1": 0.65, "c2": 0.65, "c3": 0.65} | destyled
+    below |= {f"m{i}": 0.52 for i in range(4)}  # style +0.15 > topic +0.02
+    got = deploy_check(
+        _FakeModel(below), ["c0", "c1", "c2", "c3"], list(destyled), [f"m{i}" for i in range(4)]
+    )
+    assert got.deploy_auc == pytest.approx(0.75)
+    assert got.style_effect > got.topic_effect, "the AUC must be what decides this"
+    assert got.verdict is DeployStatus.MEASURED_INADEQUATE

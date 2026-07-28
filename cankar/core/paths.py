@@ -253,6 +253,21 @@ def style_report() -> Path:
     return repo_root() / "registry" / "reports" / "style.md"
 
 
+def styled_outputs(name: str) -> Path:
+    """Styler generations, the JSONL handoff from `train` to `evals`.
+
+    Stages do not import each other (ADR 0007) and JSONL is this pipeline's
+    interchange format, so the judge reads a shard rather than calling the
+    training stage - which also means re-judging never re-runs generation, and
+    re-running generation never re-buys a judge batch."""
+    return repo_root() / "data" / "evals" / f"styled-{name}.jsonl"
+
+
+def judge_receipts() -> Path:
+    """Committed judge batch-ids, appended at SUBMIT time (the destyle.py rule)."""
+    return repo_root() / "registry" / "evals" / "judge-batches.jsonl"
+
+
 def judge_raw() -> Path:
     """Raw judge responses, append-only, written BEFORE parsing. These bytes are
     what the money bought: a parser bug must cost a re-parse, never a

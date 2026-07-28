@@ -648,7 +648,12 @@ class DeployCheck(BaseModel):
     mean_modern: float
     style_effect: float  # real vs de-styled Cankar - topic held constant
     topic_effect: float  # de-styled Cankar vs modern plain - register held constant
-    deploy_auc: float  # real Cankar vs its OWN de-styled pair
+    # TWO AUCs, because they answer different questions and only one matches how
+    # the scorer is used. Reporting a single "deploy AUC" was wrong: the code
+    # computed the unpaired one while the docstring, the report and the ROADMAP
+    # all described the paired one, and they differ by 0.22.
+    deploy_auc: float  # unpaired, all cross comparisons - the deployment-shaped one
+    paired_auc: float  # each Cankar passage against its OWN de-styled pair
     verdict: DeployStatus
 
 
@@ -663,12 +668,28 @@ def deploy_check(
     left is topic and period. Without that shared prompt the two would differ in
     two ways at once and neither effect could be attributed.
 
-    `deploy_auc` is the number that decides fitness: ranking a real Cankar
-    passage above its own de-styled counterpart is exactly what deployment asks,
-    and it is measured pairwise so passage difficulty cancels.
+    Both AUCs are reported because they answer different questions:
+
+    - `paired_auc` ranks each Cankar passage against its OWN de-styled version.
+      Content is held constant, so this asks "can it see styling at all?"
+    - `deploy_auc` is unpaired, every Cankar passage against every de-styled one.
+      Passage difficulty does NOT cancel, which is the point: deployment compares
+      scores across DIFFERENT passages (styler output on one topic against plain
+      text on another), so this is the shape the scorer is actually used in.
+
+    Fitness is decided on `deploy_auc` and the effect decomposition. A high
+    paired and low unpaired AUC - which is what this classifier shows - means it
+    can detect styling on matched content but cannot produce scores comparable
+    between passages, and comparability is what a quality claim needs.
     """
+
     if not (cankar and destyled and modern):
         raise CankarError("deploy check needs all three series - a missing one is not a zero")
+    if len(cankar) != len(destyled):
+        raise CankarError(
+            f"paired AUC needs aligned series, got {len(cankar)} Cankar and "
+            f"{len(destyled)} de-styled - index i of each must be the same passage"
+        )
 
     def p(texts: list[str]) -> list[float]:
         return [float(x) for x in model.predict_proba(texts)[:, 1]]
@@ -680,6 +701,10 @@ def deploy_check(
     ties = sum(a == b for a, b in itertools.product(pc, pd))
     auc = (wins + 0.5 * ties) / (len(pc) * len(pd))
 
+    pw = sum(a > b for a, b in zip(pc, pd, strict=True))
+    pt = sum(a == b for a, b in zip(pc, pd, strict=True))
+    paired = (pw + 0.5 * pt) / len(pc)
+
     return DeployCheck(
         n_cankar=len(pc),
         n_destyled=len(pd),
@@ -690,6 +715,7 @@ def deploy_check(
         style_effect=mc - md,
         topic_effect=md - mm,
         deploy_auc=auc,
+        paired_auc=paired,
         verdict=(
             DeployStatus.VALIDATED
             if auc >= DEPLOY_AUC_FLOOR and (mc - md) > (md - mm)
@@ -718,9 +744,15 @@ def write_deploy_report(out: Path, check: DeployCheck, train_auc: float, corpus_
         "Deployment asks whether a passage is Cankar's VOICE, with plain modern",
         "Slovene as the negative.",
         "",
-        f"**Deploy ROC-AUC = {c.deploy_auc:.3f}** - ranking a real Cankar passage",
-        "above its OWN de-styled counterpart, measured pairwise so passage",
-        f"difficulty cancels ({c.n_cankar} held-out pairs).",
+        f"**Deploy ROC-AUC = {c.deploy_auc:.3f}** (unpaired, {c.n_cankar} held-out pairs):",
+        "every real Cankar passage against every de-styled one. Passage difficulty",
+        "does NOT cancel, and that is the point - deployment compares scores across",
+        "DIFFERENT passages, so this is the shape the scorer is actually used in.",
+        "",
+        f"**Paired ROC-AUC = {c.paired_auc:.3f}**: each Cankar passage against its OWN",
+        "de-styled version, content held constant. The scorer CAN see styling when",
+        "the content is fixed; what it cannot do is produce scores comparable between",
+        "passages, and comparability is what a quality claim needs.",
         "",
         "## Where the score actually comes from",
         "",

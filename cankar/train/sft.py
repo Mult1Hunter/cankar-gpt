@@ -126,6 +126,25 @@ def special_ids(enc: tiktoken.Encoding) -> dict[str, int]:
     return {s: enc.encode_single_token(s) for s in SPECIALS}
 
 
+def build_prompt(plain: str, enc: tiktoken.Encoding, sp: dict[str, int]) -> list[int]:
+    """The prompt side of the training format, up to and including
+    `<|assistant_start|>`.
+
+    Shared with inference (`train/sample.py::style_transfer`) rather than
+    reconstructed there. A second copy would let the training format gain a field
+    and inference silently keep the old one - a train/inference mismatch, which is
+    the failure design invariant #1 exists to prevent, in a place the invariant
+    itself does not reach.
+    """
+    return [
+        bos_id(enc),
+        sp[USER_START],
+        *enc.encode_ordinary(plain),
+        sp[USER_END],
+        sp[ASSISTANT_START],
+    ]
+
+
 def build_example(plain: str, cankar: str, enc: tiktoken.Encoding, sp: dict[str, int]) -> Example:
     """`<|bos|><|user_start|>plain<|user_end|><|assistant_start|>cankar<|assistant_end|>`
 
@@ -133,8 +152,7 @@ def build_example(plain: str, cankar: str, enc: tiktoken.Encoding, sp: dict[str,
     model has to learn where to stop, and a target that never contains the stop
     token produces generations that run on past the passage.
     """
-    prompt = [bos_id(enc), sp[USER_START], *enc.encode_ordinary(plain), sp[USER_END]]
-    prompt.append(sp[ASSISTANT_START])
+    prompt = build_prompt(plain, enc, sp)
     target = [*enc.encode_ordinary(cankar), sp[ASSISTANT_END]]
     return Example(tokens=prompt + target, n_prompt=len(prompt), n_target=len(target))
 

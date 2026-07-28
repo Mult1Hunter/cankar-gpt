@@ -203,3 +203,59 @@ def test_cost_scales_with_the_text_and_halves_for_batch() -> None:
     assert est.n_requests == 100
     full = est.input_tokens / 1e6 * 3.0 + est.output_tokens / 1e6 * 15.0
     assert est.usd_batch == pytest.approx(full / 2, abs=0.01)
+
+
+def test_the_control_margin_is_the_line_it_claims_to_be() -> None:
+    """ADR 0006: every other fixture here sits at margin 0 or 4, so
+    MIN_CONTROL_MARGIN could be 0.1 or 3.9 with a green suite. These bracket it."""
+    from cankar.evals.judge import MIN_CONTROL_MARGIN, check_controls
+
+    assert MIN_CONTROL_MARGIN == 1.0
+    items = _items()
+    # voice margin exactly 1.0 (5 -> 4) passes; 0 fails. Meaning margin held wide.
+    assert check_controls(items, _verdicts(items, real=(5, 5), echo=(5, 4), mismatch=(1, 5))).usable
+    assert not check_controls(
+        items, _verdicts(items, real=(5, 5), echo=(5, 5), mismatch=(1, 5))
+    ).usable
+
+
+def test_an_echo_scored_low_on_meaning_is_rejected() -> None:
+    """ControlKind declares four MUSTs and only two were enforced: a judge that
+    scores the source-verbatim ECHO as poor on MEANING is broken - the echo
+    preserves meaning perfectly by construction - and used to pass."""
+    from cankar.evals.judge import check_controls
+
+    items = _items()
+    outcome = check_controls(items, _verdicts(items, real=(5, 5), echo=(2, 1), mismatch=(1, 5)))
+    assert not outcome.usable
+    assert any("ECHO meaning" in f for f in outcome.failures)
+
+
+def test_a_halo_judge_is_rejected_on_the_same_axis() -> None:
+    """MISMATCH candidates ARE real Cankar, so their voice must stay near
+    REAL_CANKAR's. If it collapses with meaning, one quality dimension is wearing
+    three labels. Compared same-axis: the earlier version subtracted a meaning
+    score from a voice score, which carries a constant axis offset."""
+    from cankar.evals.judge import check_controls
+
+    items = _items()
+    outcome = check_controls(items, _verdicts(items, real=(5, 5), echo=(5, 1), mismatch=(1, 2)))
+    assert not outcome.axes_independent
+    assert any("halo" in f for f in outcome.failures)
+
+
+def test_scores_come_from_this_batch_not_the_whole_ledger() -> None:
+    """The raw ledger is append-only, so a prefix match over it mixes a previous
+    larger run's verdicts into a later smaller one - silently averaging over
+    generations from a different checkpoint."""
+    from cankar.evals.judge import ControlKind, JudgeItem, score_series
+
+    items = _items() + [JudgeItem("holdout-0", "s", "c", ControlKind.NONE)]
+    verdicts = _verdicts(items, real=(5, 5), echo=(5, 1), mismatch=(1, 5))
+    verdicts["holdout-0"] = Verdict(item_id="holdout-0", meaning=2, voice=2, fluency=2)
+    # a stale row from an earlier, larger run - not in `items`
+    verdicts["holdout-99"] = Verdict(item_id="holdout-99", meaning=5, voice=5, fluency=5)
+
+    scores = score_series(items, verdicts)
+    assert scores.overall.n == 1, "only this batch's scored items count"
+    assert scores.holdout is not None and scores.holdout.meaning == 2.0

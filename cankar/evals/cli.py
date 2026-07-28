@@ -15,10 +15,13 @@ import argparse
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 import joblib
 import torch
 
+from cankar.core.batch import POLL_MAX_SECONDS, POLL_START_SECONDS
+from cankar.core.batch import client as batch_client
 from cankar.core.encoding import load_encoding
 from cankar.core.errors import CankarError
 from cankar.core.holdout import holdout_excludes, load_holdout
@@ -38,6 +41,7 @@ from cankar.core.paths import (
     holdout_manifest,
     holdout_report,
     judge_raw,
+    judge_receipts,
     judge_report,
     merged_shard,
     pairs_shard,
@@ -46,6 +50,7 @@ from cankar.core.paths import (
     style_manifest,
     style_model,
     style_report,
+    styled_outputs,
     tokenizer_base_dir,
 )
 from cankar.evals import bpb, holdout, style
@@ -219,8 +224,10 @@ def _deploy_check(args: argparse.Namespace) -> int:
         style_deploy_report(), check, manifest.metrics.roc_auc_mean, manifest.corpus_sha256
     )
     log.info(
-        "deploy check: AUC %.3f (train task %.3f) | style effect %+.3f vs topic effect %+.3f -> %s",
+        "deploy check: unpaired AUC %.3f / paired %.3f (train task %.3f) | "
+        "style effect %+.3f vs topic effect %+.3f -> %s",
         check.deploy_auc,
+        check.paired_auc,
         manifest.metrics.roc_auc_mean,
         check.style_effect,
         check.topic_effect,
@@ -231,59 +238,36 @@ def _deploy_check(args: argparse.Namespace) -> int:
 
 
 def _judge(args: argparse.Namespace) -> int:
-    """Eval pillar #3. Generates styler output for held-out pairs and fresh
-    drafts, judges every item, and validates the JUDGE against blind controls
-    before reporting a single score.
+    """Eval pillar #3. Judges a styled-output shard and validates the JUDGE
+    against blind controls before any score is believed.
 
-    The control check gates the report deliberately: an unvalidated instrument
-    producing plausible numbers is how the style classifier came to be trusted
-    for a task it fails at, and that mistake is cheap to repeat."""
-    import os
+    Reads generations rather than producing them: `evals` may not import `train`
+    (ADR 0007), and JSONL is this pipeline's interchange format. Run
+    `cankar train style` first.
+    """
     import time
 
-    from anthropic import Anthropic
-
     from cankar.evals import judge
+    from cankar.evals.judge import ControlKind, JudgeItem
 
+    if not args.outputs.exists():
+        raise CankarError(f"no styled outputs at {args.outputs} (run: cankar train style)")
+    styled = [json.loads(x) for x in args.outputs.open(encoding="utf-8") if x.strip()]
     pairs = [
         json.loads(x) for x in pairs_shard(PairSet.HOLDOUT).open(encoding="utf-8") if x.strip()
-    ][: args.limit]
+    ]
+
     items = judge.build_controls(pairs, n=args.controls)
-
-    # styler output for the same held-out sources, so the scored items and the
-    # REAL_CANKAR control share a source and differ only in the candidate
-    from cankar.evals.judge import ControlKind, JudgeItem
-    from cankar.train import sample as train_sample
-
-    device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
-    outputs = train_sample.style_transfer(args.checkpoint, [p["plain"] for p in pairs], device)
     items += [
-        JudgeItem(f"holdout-{i}", p["plain"], out, ControlKind.NONE)
-        for i, (p, out) in enumerate(zip(pairs, outputs, strict=True))
-    ]
-
-    # Fresh drafts too: the GAP between these and the held-out set is the honest
-    # headline (ROADMAP Phase 6). Held-out sources are de-styled Cankar, so they
-    # still carry his subject matter and rhythm; the drafts are modern topics in
-    # the same plain register by design invariant #1, which makes topic the only
-    # variable that moves.
-    drafts = [
-        json.loads(x)
-        for x in drafts_shard().open(encoding="utf-8")
-        if x.strip() and json.loads(x)["arm"] == "register"
-    ]
-    draft_out = train_sample.style_transfer(args.checkpoint, [d["text"] for d in drafts], device)
-    items += [
-        JudgeItem(f"draft-{i}", d["text"], out, ControlKind.NONE)
-        for i, (d, out) in enumerate(zip(drafts, draft_out, strict=True))
+        JudgeItem(r["item_id"], r["source"], r["candidate"], ControlKind.NONE) for r in styled
     ]
 
     est = judge.estimate_cost(items)
     log.info(
-        "judging %d items (%d controls + %d scored): ~%d in / %d out tokens, ~$%.2f batch",
+        "judging %d items (%d controls + %d styled): ~%d in / %d out tokens, ~$%.2f batch",
         est.n_requests,
-        est.n_requests - len(outputs),
-        len(outputs),
+        len(items) - len(styled),
+        len(styled),
         est.input_tokens,
         est.output_tokens,
         est.usd_batch,
@@ -292,71 +276,67 @@ def _judge(args: argparse.Namespace) -> int:
         log.info("dry run - nothing submitted")
         return 0
 
-    client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    client = batch_client()
     requests = [judge.build_request(i, args.model) for i in items]
-    batch = client.with_options(max_retries=0).messages.batches.create(
-        requests=requests  # type: ignore[arg-type]
+    batch = client.with_options(max_retries=0).messages.batches.create(requests=requests)
+    # Receipt at SUBMIT time, not on completion. Results live server-side for
+    # weeks, so a crash between here and the download is a re-download - but only
+    # if the id survives (destyle.py's rule; this command shipped without it).
+    judge.append_receipt(
+        judge_receipts(),
+        judge.JudgeReceipt(
+            batch_id=batch.id,
+            created_at=utc_now_iso(),
+            model=args.model,
+            n_requests=len(requests),
+            outputs=args.outputs.name,
+        ),
     )
     log.info("submitted judge batch %s (%d requests)", batch.id, len(requests))
 
-    delay = 30
+    delay = POLL_START_SECONDS
     while True:
         b = client.messages.batches.retrieve(batch.id)
         if b.processing_status == "ended":
             break
         log.info("judge batch: %s, waiting %ds", b.processing_status, delay)
         time.sleep(delay)
-        delay = min(delay * 2, 300)
+        delay = min(delay * 2, POLL_MAX_SECONDS)
 
     # raw FIRST, parse second - see judge.append_raw
     records = [json.loads(r.model_dump_json()) for r in client.messages.batches.results(batch.id)]
     judge.append_raw(judge_raw(), records)
     log.info("saved %d raw responses -> %s", len(records), judge_raw())
+
+    return _judge_report(items, styled, args)
+
+
+def _judge_report(items: list[Any], styled: list[dict[str, Any]], args: argparse.Namespace) -> int:
+    """Score and report from the RAW ledger, so re-reporting never re-buys."""
+    from cankar.evals import judge
+
     verdicts = judge.parse_raw(judge_raw())
-
     outcome = judge.check_controls(items, verdicts)
-
-    def series(prefix: str) -> list[judge.Verdict]:
-        return [v for k, v in verdicts.items() if k.startswith(prefix)]
-
-    def means_of(rows: list[judge.Verdict]) -> dict[str, float]:
-        return {
-            axis.value: sum(getattr(v, axis.value) for v in rows) / len(rows) for axis in judge.Axis
-        }
-
-    holdout_rows, draft_rows = series("holdout-"), series("draft-")
-    scored = holdout_rows + draft_rows
-    if not scored:
-        raise CankarError(
-            f"no scored verdicts among {len(verdicts)} parsed - the item ids the batch "
-            "was built with do not match the ones being read back"
-        )
-    means = means_of(scored)
+    scores = judge.score_series(items, verdicts)
     judge.write_judge_report(
         judge_report(),
         outcome,
-        means,
-        len(scored),
-        holdout=means_of(holdout_rows) if holdout_rows else None,
-        drafts=means_of(draft_rows) if draft_rows else None,
-        n_holdout=len(holdout_rows),
-        n_drafts=len(draft_rows),
+        scores,
         corpus_sha=sha256_of(merged_shard()),
+        checkpoint=args.checkpoint_name,
+        checkpoint_sha=args.checkpoint_sha,
+        n_truncated=sum(not r.get("stopped_at_end", True) for r in styled),
     )
-
     for f in outcome.failures:
         log.error("CONTROL FAILED - %s", f)
     log.info(
-        "judge %s | styler-v1 meaning %.2f voice %.2f fluency %.2f (n=%d) -> %s",
+        "judge %s | %s -> %s",
         "USABLE" if outcome.usable else "NOT USABLE",
-        means["meaning"],
-        means["voice"],
-        means["fluency"],
-        len(scored),
+        scores.describe(),
         judge_report(),
     )
-    # A failed control run is not a bad score, it is an unusable instrument -
-    # exiting 0 would let it be quoted anyway.
+    # A failed control run is an unusable instrument, not a bad score - exiting 0
+    # would let its numbers be quoted anyway.
     return 0 if outcome.usable else 1
 
 
@@ -385,12 +365,12 @@ def register(parser: argparse.ArgumentParser) -> None:
     d.add_argument("--name", default="v1", help="classifier artifact suffix")
     d.set_defaults(func=_deploy_check)
 
-    j = sub.add_parser("judge", help="LLM meaning-judge over styler output (eval pillar #3)")
-    j.add_argument("--checkpoint", type=Path, default=checkpoints_dir() / "styler-v1.pt")
-    j.add_argument("--limit", type=int, default=100, help="held-out pairs to score")
-    j.add_argument("--controls", type=int, default=12, help="pairs sampled for blind controls")
+    j = sub.add_parser("judge", help="LLM meaning-judge over a styled shard (eval pillar #3)")
+    j.add_argument("--outputs", type=Path, default=styled_outputs("styler-v1"))
+    j.add_argument("--controls", type=int, default=20, help="pairs sampled for blind controls")
     j.add_argument("--model", default="claude-sonnet-5")
-    j.add_argument("--device", default=None)
+    j.add_argument("--checkpoint-name", default="styler-v1", dest="checkpoint_name")
+    j.add_argument("--checkpoint-sha", default="", dest="checkpoint_sha")
     j.add_argument("--dry-run", action="store_true", help="estimate cost, submit nothing")
     j.set_defaults(func=_judge)
 

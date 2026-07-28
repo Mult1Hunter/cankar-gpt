@@ -11,9 +11,15 @@ peers, all 1900s literary prose. That is not the task it is deployed on.
 Deployment asks whether a passage is Cankar's VOICE, with plain modern
 Slovene as the negative.
 
-**Deploy ROC-AUC = 0.650** - ranking a real Cankar passage
-above its OWN de-styled counterpart, measured pairwise so passage
-difficulty cancels (285 held-out pairs).
+**Deploy ROC-AUC = 0.650** (unpaired, 285 held-out pairs):
+every real Cankar passage against every de-styled one. Passage difficulty
+does NOT cancel, and that is the point - deployment compares scores across
+DIFFERENT passages, so this is the shape the scorer is actually used in.
+
+**Paired ROC-AUC = 0.870**: each Cankar passage against its OWN
+de-styled version, content held constant. The scorer CAN see styling when
+the content is fixed; what it cannot do is produce scores comparable between
+passages, and comparability is what a quality claim needs.
 
 ## Where the score actually comes from
 

@@ -40,18 +40,14 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
+from cankar.core.batch import CHARS_PER_TOKEN, DEFAULT_MODEL, extract_text
 from cankar.core.errors import CankarError
 
 log = logging.getLogger("cankar.evals")
 
 JUDGE_VERSION = 1
-DEFAULT_MODEL = "claude-sonnet-5"
 MAX_TOKENS = 512
 
-# Slovene chars/token, regressed on the real Phase 5 bill rather than taken from
-# count_tokens - which was measured against a different model family and came out
-# 31% low. Reused here because the text is the same language and tokenizer.
-CHARS_PER_TOKEN = 2.09
 FIXED_INPUT_TOKENS = 620  # the rubric below, measured once and pinned
 
 
@@ -222,13 +218,6 @@ def build_request(item: JudgeItem, model: str = DEFAULT_MODEL) -> dict[str, Any]
     }
 
 
-def extract_text(message: dict[str, Any]) -> str:
-    """Join every text block. Never content[0]: with thinking enabled the first
-    block is a thinking block, and indexing would silently read the wrong one."""
-    blocks = message.get("content") or []
-    return "\n".join(b["text"] for b in blocks if b.get("type") == "text").strip()
-
-
 def append_raw(path: Path, records: list[dict[str, Any]]) -> Path:
     """Write what the money bought, BEFORE parsing it.
 
@@ -371,7 +360,14 @@ def check_controls(items: list[JudgeItem], verdicts: dict[str, Verdict]) -> Cont
     meaning_margin = rm - mm
     # a mismatched passage is still real Cankar: its voice must stay up while
     # its meaning collapses, or the two axes are one axis
-    independent = (mv - mm) >= MIN_CONTROL_MARGIN
+    # SAME-AXIS. The earlier version compared MISMATCH's voice against its own
+    # meaning, subtracting one axis from another - the two have different
+    # empirical ceilings (real Cankar: 4.60 meaning vs 3.65 voice), so that
+    # difference carries a constant axis offset unrelated to independence.
+    # MISMATCH candidates ARE real Cankar, so the well-founded test is that their
+    # voice stays NEAR REAL_CANKAR's: if it collapses alongside meaning, the
+    # meaning failure is bleeding into voice, which is the halo being ruled out.
+    independent = abs(mv - rv) < MIN_CONTROL_MARGIN
 
     failures = []
     if voice_margin < MIN_CONTROL_MARGIN:
@@ -386,8 +382,17 @@ def check_controls(items: list[JudgeItem], verdicts: dict[str, Verdict]) -> Cont
         )
     if not independent:
         failures.append(
-            f"axes are not independent: MISMATCH voice {mv:.2f} vs its meaning {mm:.2f} "
-            f"- a mismatched Cankar passage must keep voice while meaning collapses"
+            f"axes are not independent: MISMATCH voice {mv:.2f} vs REAL voice {rv:.2f} "
+            "- both are real Cankar, so a voice gap here means the meaning failure "
+            "is bleeding into the voice score (halo)"
+        )
+    # The ControlKind docstring declares four MUSTs; enforcing two left a judge
+    # that scores the source-verbatim ECHO as meaning 2 passing silently.
+    if em < rm - MIN_CONTROL_MARGIN:
+        failures.append(
+            f"ECHO meaning {em:.2f} is below REAL meaning {rm:.2f} - the echoed source "
+            "preserves meaning perfectly by construction, so this judge is not "
+            "reading meaning"
         )
 
     return ControlOutcome(
@@ -435,34 +440,165 @@ def build_controls(pairs: list[dict[str, str]], n: int, seed: int = 20260728) ->
     return items
 
 
+class SeriesScores(BaseModel):
+    n: int
+    meaning: float
+    voice: float
+    fluency: float
+
+
+class JudgeScores(BaseModel):
+    """Scores per series. Derived from the ITEMS of this batch, never by prefix
+    match over the append-only raw ledger - that let a previous larger run's
+    verdicts into the headline of a later smaller one, silently averaging over
+    generations from a different checkpoint."""
+
+    holdout: SeriesScores | None = None
+    drafts: SeriesScores | None = None
+    overall: SeriesScores
+
+    def describe(self) -> str:
+        d = self.drafts
+        tail = f" | drafts m{d.meaning:.2f} v{d.voice:.2f} f{d.fluency:.2f}" if d else ""
+        return (
+            f"overall m{self.overall.meaning:.2f} v{self.overall.voice:.2f} "
+            f"f{self.overall.fluency:.2f} (n={self.overall.n}){tail}"
+        )
+
+
+def score_series(items: list[JudgeItem], verdicts: dict[str, Verdict]) -> JudgeScores:
+    """Aggregate the scored (non-control) items of THIS batch."""
+
+    def agg(rows: list[Verdict]) -> SeriesScores | None:
+        if not rows:
+            return None
+        return SeriesScores(
+            n=len(rows),
+            **{a.value: sum(getattr(r, a.value) for r in rows) / len(rows) for a in Axis},
+        )
+
+    scored = [
+        (i, verdicts[i.item_id])
+        for i in items
+        if i.control is ControlKind.NONE and i.item_id in verdicts
+    ]
+    if not scored:
+        raise CankarError("no scored verdicts for this batch's items")
+    overall = agg([v for _, v in scored])
+    assert overall is not None
+    return JudgeScores(
+        holdout=agg([v for i, v in scored if i.item_id.startswith("holdout-")]),
+        drafts=agg([v for i, v in scored if i.item_id.startswith("draft-")]),
+        overall=overall,
+    )
+
+
+class JudgeReceipt(BaseModel):
+    """Committed at SUBMIT time. Results live server-side for weeks, so a crash
+    before download is a re-download - but only if the id survived."""
+
+    batch_id: str
+    created_at: str
+    model: str
+    n_requests: int
+    outputs: str
+
+
+def append_receipt(path: Path, receipt: JudgeReceipt) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(receipt.model_dump_json() + "\n")
+    return path
+
+
 def write_judge_report(
     out: Path,
     outcome: ControlOutcome,
-    scores: dict[str, float],
-    n: int,
-    holdout: dict[str, float] | None = None,
-    drafts: dict[str, float] | None = None,
-    n_holdout: int = 0,
-    n_drafts: int = 0,
+    scores: JudgeScores,
     corpus_sha: str = "",
+    checkpoint: str = "",
+    checkpoint_sha: str = "",
+    n_truncated: int = 0,
 ) -> None:
     from cankar.core.reports import generated_marker, write_report
 
     verdict = "USABLE" if outcome.usable else "NOT USABLE"
+
+    def row(label: str, s: SeriesScores) -> list[str]:
+        return [f"| {label} | {s.n} | {s.meaning:.2f} | {s.voice:.2f} | {s.fluency:.2f} |"]
+
     L = [
         generated_marker("cankar evals judge", snapshot=True),
         "",
         "# LLM meaning-judge - controls and scores",
         "",
-        # Stamped for the freshness gate: the scores are only valid for the pair
-        # set and drafts this corpus produced.
         f"Corpus sha256 `{corpus_sha}`.",
+        f"Checkpoint `{checkpoint}` sha256 `{checkpoint_sha or 'UNRECORDED'}`.",
         "",
         f"**Judge status: {verdict}.**",
         "",
-        "The judge is an instrument, and an instrument that has not been checked",
-        "is what produced the style classifier's 0.993-on-paper / 0.650-in-use gap.",
-        "Every batch therefore carries blind controls with a known answer.",
+    ]
+
+    # The finding first: the pooled number is ~89% held-out and buries it.
+    if scores.drafts:
+        d = scores.drafts
+        L += [
+            "## The finding",
+            "",
+            f"On **fresh drafts** (n={d.n}, modern topics the model never saw) styler-v1",
+            f"scores meaning **{d.meaning:.2f}**, voice **{d.voice:.2f}**, fluency"
+            f" **{d.fluency:.2f}** on a 1-5 scale whose floor is 1. Fluency at the floor",
+            "means the output is not well-formed Slovene, which no amount of style",
+            "tuning fixes.",
+            "",
+        ]
+
+    L += [
+        "## Scores",
+        "",
+        "Read against the ceiling row, not against 5: real Cankar scores about",
+        f"{outcome.real_voice:.1f} on voice, so 5 is not a reachable target. Ceilings are",
+        "measured in the same batch.",
+        "",
+        "| series | n | meaning | voice | fluency |",
+        "|---|--:|--:|--:|--:|",
+    ]
+    if scores.holdout:
+        L += row("held-out pairs", scores.holdout)
+    if scores.drafts:
+        L += row("fresh drafts", scores.drafts)
+    L += row("**all scored**", scores.overall)
+    L += [
+        f"| _ceiling (real Cankar)_ | {outcome.n_real} | {outcome.real_meaning:.2f} | "
+        f"{outcome.real_voice:.2f} | {outcome.real_fluency:.2f} |",
+        "",
+    ]
+    if scores.holdout and scores.drafts:
+        h, d = scores.holdout, scores.drafts
+        L += [
+            "The gap between the two rows is the honest headline. Held-out sources are",
+            "de-styled Cankar, so they still carry his subject matter; the drafts are",
+            "modern topics in the same plain register (design invariant #1), so topic is",
+            "the only variable that moves.",
+            "",
+            f"- meaning {h.meaning - d.meaning:+.2f}, voice {h.voice - d.voice:+.2f}, "
+            f"fluency {h.fluency - d.fluency:+.2f}",
+            "",
+        ]
+    if n_truncated:
+        L += [
+            f"{n_truncated} of the scored generations hit `max_tokens` without emitting",
+            "a stop token, so they were cut mid-passage - a fluency penalty the model",
+            "earned in a way the rubric cannot distinguish from ordinary incoherence.",
+            "",
+        ]
+
+    L += [
+        "## Controls",
+        "",
+        "An unvalidated instrument producing plausible numbers is how the style",
+        "classifier came to be trusted for a task it fails. Every batch carries items",
+        "with a known answer.",
         "",
         "| control | n | meaning | voice |",
         "|---|--:|--:|--:|",
@@ -473,52 +609,25 @@ def write_judge_report(
         f"| MISMATCH (Cankar, wrong content) | {outcome.n_mismatch} | "
         f"{outcome.mismatch_meaning:.2f} | {outcome.mismatch_voice:.2f} |",
         "",
-        f"- can it see styling? REAL vs ECHO voice margin **{outcome.voice_margin:+.2f}** "
+        f"- can it see styling? REAL vs ECHO voice **{outcome.voice_margin:+.2f}** "
         f"(needs >= {MIN_CONTROL_MARGIN})",
-        f"- can it see content? REAL vs MISMATCH meaning margin **{outcome.meaning_margin:+.2f}** "
+        f"- can it see content? REAL vs MISMATCH meaning **{outcome.meaning_margin:+.2f}** "
         f"(needs >= {MIN_CONTROL_MARGIN})",
-        f"- are the axes independent? **{outcome.axes_independent}** "
-        "(MISMATCH must hold voice while meaning collapses)",
+        f"- no halo? MISMATCH voice within {MIN_CONTROL_MARGIN} of REAL voice: "
+        f"**{outcome.axes_independent}**",
         "",
     ]
     if outcome.failures:
-        L += ["## Why it is not usable", ""] + [f"- {f}" for f in outcome.failures] + [""]
-    ceilings = {
-        "meaning": outcome.real_meaning,
-        "voice": outcome.real_voice,
-        "fluency": outcome.real_fluency,
-    }
+        L += ["### Why it is not usable", ""] + [f"- {f}" for f in outcome.failures] + [""]
     L += [
-        f"## Scores - styler-v1 ({n} items)",
+        "### What a pass does NOT establish",
         "",
-        "Read against the CEILING column, not against 5. Real Cankar scores about",
-        f"{outcome.real_voice:.1f} on voice: the rubric's top band is not awarded even to",
-        "Cankar on a short excerpt, so 5 is not a reachable target and a raw score",
-        "would understate the model. The ceiling is measured in the same batch.",
-        "",
-        "| axis | styler-v1 | ceiling (real Cankar) | of ceiling |",
-        "|---|--:|--:|--:|",
-    ] + [
-        f"| {k} | {v:.2f} | {ceilings[k]:.2f} | {100 * v / ceilings[k]:.0f}% |"
-        for k, v in scores.items()
-    ]
-    if holdout and drafts:
-        L += [
-            "",
-            "## The gap - held-out pairs vs fresh drafts",
-            "",
-            "This is the honest headline. Held-out sources are de-styled Cankar, so",
-            "they still carry his subject matter; the drafts are modern topics in the",
-            "same plain register (design invariant #1), so topic is the only variable",
-            "that moves. A large gap means the model learned the corpus, not the task.",
-            "",
-            f"| axis | held-out (n={n_holdout}) | drafts (n={n_drafts}) | gap |",
-            "|---|--:|--:|--:|",
-        ] + [
-            f"| {k} | {holdout[k]:.2f} | {drafts[k]:.2f} | {holdout[k] - drafts[k]:+.2f} |"
-            for k in holdout
-        ]
-    L += [
+        "The rubric states both extremes explicitly (an echoed source is VOICE 1,",
+        "unrelated content is MEANING 1), so ECHO and MISMATCH scoring perfectly - with",
+        "zero variance across every item - shows the judge APPLIES the rubric at its",
+        "stated ends. It does not establish discrimination in the 2-3 band where",
+        "styler-v1 actually sits. That is the same class of gap this harness diagnosed",
+        "in the style classifier, and the honest bound on what these numbers support.",
         "",
         "Self-preference is bounded, not removed: the plain side of every pair was",
         "written by Claude, so a Claude judge scores text descended from its own",

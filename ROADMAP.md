@@ -153,9 +153,12 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       (MF-3). SloBERTa still deferred - now with a measured AUC to beat.
 - [x] **MF-3 RESOLVED, negatively (Phase 6):** `cankar evals deploy-check` measures
       the classifier on the task it is DEPLOYED on rather than the one it was
-      trained on. Train-task AUC 0.993; **deploy AUC 0.650** - ranking a real
-      Cankar passage above its OWN de-styled pair, 285 held-out pairs, pairwise so
-      passage difficulty cancels. Decomposed via design invariant #1, which holds
+      trained on. Train-task AUC 0.993; **deploy AUC 0.650** (unpaired - every
+      Cankar passage against every de-styled one, 285 held-out pairs, which is how
+      deployment compares scores: across DIFFERENT passages). Paired AUC is 0.870,
+      so it CAN see styling when content is held constant; what it cannot do is
+      produce comparable scores between passages, and comparability is what a
+      claim needs. Decomposed via design invariant #1, which holds
       register constant between de-styled Cankar and the modern drafts: the topic
       effect (+0.536) is **4.2x** the style effect (+0.128). The classifier is
       substantially a period/topic detector. The training confound audit could not
@@ -179,8 +182,17 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       Ceilings are measured not assumed: real Cankar scores 3.65 on VOICE, so 5
       is not a reachable target and scores are reported against the ceiling.
       Cost $1.12 actual. registry/reports/judge.md
+- [x] **Phase 6 headline, measured (eval before claims):** styler-v1 on FRESH
+      DRAFTS scores meaning **1.09**, voice **1.89**, fluency **1.03** on a 1-5
+      scale whose floor is 1, against a real-Cankar ceiling of 4.60/3.65/4.15.
+      Held-out pairs: 2.25/2.34/1.77. **Fluency at the floor means the output is
+      not well-formed Slovene**, which no amount of style tuning fixes - 26.3M
+      parameters do not do Slovene style transfer on unseen topics. This is the
+      go/no-go input for GaMS. The style classifier had scored the same draft
+      outputs as a 0.090 -> 0.361 improvement; it was rewarding archaic
+      vocabulary sprinkled on broken Slovene.
 - [ ] Dev set design: 200 held-out pairs **+ 50 fresh drafts**. Held-out half DONE:
-      `cankar pairs segment/destyle --set holdout` -> **289 pairs** from the 12
+      `cankar pairs segment/destyle --set holdout` -> **285 pairs** from the 12
       held-out prose works, zero passage- AND work-level overlap with the 9,950
       training pairs (`PairSet` inverts one shared predicate, so a doc cannot be
       eligible for both). Fresh drafts remain - they are the other half of the

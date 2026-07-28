@@ -15,6 +15,7 @@ import logging
 import os
 import time
 
+from cankar.core.batch import POLL_MAX_SECONDS, POLL_START_SECONDS
 from cankar.core.errors import CankarError
 from cankar.core.holdout import holdout_excludes, load_holdout
 from cankar.core.manifest import (
@@ -53,8 +54,6 @@ log = logging.getLogger("cankar.pairs")
 
 # Batch polling: most batches finish in minutes, the ceiling is 24h. Backs off
 # to one minute so a long batch costs a handful of API calls, not thousands.
-POLL_START_SECONDS = 5
-POLL_MAX_SECONDS = 60
 
 
 def _segment(args: argparse.Namespace) -> int:

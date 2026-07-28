@@ -9,9 +9,10 @@ Deterministic given (checkpoint, seed) - the "before" samples archive as
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
-from cankar.core.encoding import bos_id, load_encoding
+from cankar.core.encoding import load_encoding
 from cankar.core.errors import CankarError
 from cankar.model.build import build_gpt
 from cankar.model.gpt import GPTConfig
@@ -47,6 +48,16 @@ def sample_from_checkpoint(
     ]
 
 
+@dataclass(frozen=True)
+class StyledOutput:
+    """One generation. `stopped_at_end` distinguishes a finished passage from one
+    cut off at max_tokens - indistinguishable in the text alone, and the first
+    thing a reader asks when the fluency score is at the floor."""
+
+    text: str
+    stopped_at_end: bool
+
+
 def style_transfer(
     ckpt_path: Path,
     sources: list[str],
@@ -55,7 +66,7 @@ def style_transfer(
     temperature: float = 0.8,
     top_k: int = 50,
     seed: int = 20260728,
-) -> list[str]:
+) -> list[StyledOutput]:
     """Run a styler checkpoint over plain-Slovene sources, one output each.
 
     Separate from `sample_from_checkpoint` rather than a flag on it: that one
@@ -67,14 +78,7 @@ def style_transfer(
     Validates its config with SftConfig, not TrainConfig - a styler checkpoint
     carries SFT fields (rehearsal_frac, lr_scale) that TrainConfig would reject.
     """
-    from cankar.train.sft import (
-        ASSISTANT_END,
-        ASSISTANT_START,
-        USER_END,
-        USER_START,
-        SftConfig,
-        special_ids,
-    )
+    from cankar.train.sft import ASSISTANT_END, SftConfig, build_prompt, special_ids
 
     state = load_checkpoint(ckpt_path, device)
     if "gptconfig" not in state:
@@ -86,21 +90,20 @@ def style_transfer(
     model.load_state_dict(state["model"])
     model.eval()
 
-    outputs: list[str] = []
+    outputs: list[StyledOutput] = []
     for i, source in enumerate(sources):
-        tokens = [
-            bos_id(enc),
-            sp[USER_START],
-            *enc.encode_ordinary(source),
-            sp[USER_END],
-            sp[ASSISTANT_START],
-        ]
         emitted: list[int] = []
+        stopped = False
         for tok in model.generate(
-            tokens, max_tokens=max_tokens, temperature=temperature, top_k=top_k, seed=seed + i
+            build_prompt(source, enc, sp),
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_k=top_k,
+            seed=seed + i,
         ):
             if tok == sp[ASSISTANT_END]:
+                stopped = True
                 break
             emitted.append(tok)
-        outputs.append(enc.decode(emitted).strip())
+        outputs.append(StyledOutput(enc.decode(emitted).strip(), stopped))
     return outputs

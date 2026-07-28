@@ -3,6 +3,7 @@
 cankar train run   [--config configs/train/tinycankar.toml] [--resume]
 cankar train sft   [--config configs/train/styler-v1.toml]   # Phase 6
 cankar train sample --checkpoint checkpoints/tinycankar.pt [--prompt ...]
+cankar train style  --checkpoint checkpoints/styler-v1.pt   # -> JSONL for evals
 """
 
 from __future__ import annotations
@@ -18,14 +19,16 @@ from cankar.core.paths import (
     checkpoints_dir,
     chunks_manifest,
     chunks_shard,
+    drafts_shard,
     holdout_manifest,
     pairs_shard,
+    styled_outputs,
     train_config,
 )
 from cankar.train.config import load_sft_config, load_train_config
 from cankar.train.data import cankar_chunk_texts
 from cankar.train.loop import train
-from cankar.train.sample import sample_from_checkpoint
+from cankar.train.sample import sample_from_checkpoint, style_transfer
 from cankar.train.sft_loop import train_styler
 
 log = logging.getLogger("cankar.train")
@@ -72,6 +75,54 @@ def _sft(args: argparse.Namespace) -> int:
     return 0
 
 
+def _style(args: argparse.Namespace) -> int:
+    """Generate styler output for the Phase 6 eval sources and write the shard
+    `cankar evals judge` reads.
+
+    A separate command rather than a step inside the judge because `evals` may
+    not import `train` (ADR 0007) - and because generation and judging have very
+    different costs, so coupling them would mean every re-judge re-generates and
+    every re-generate re-buys a batch."""
+    import json
+
+    device = _device(args.device)
+    pairs = [
+        json.loads(x) for x in pairs_shard(PairSet.HOLDOUT).open(encoding="utf-8") if x.strip()
+    ][: args.limit]
+    drafts = [
+        json.loads(x)
+        for x in drafts_shard().open(encoding="utf-8")
+        if x.strip() and json.loads(x)["arm"] == "register"
+    ]
+    log.info("styling %d held-out sources + %d drafts on %s", len(pairs), len(drafts), device)
+
+    rows = []
+    for series, sources in (
+        ("holdout", [p["plain"] for p in pairs]),
+        ("draft", [d["text"] for d in drafts]),
+    ):
+        results = style_transfer(args.checkpoint, sources, device)
+        rows += [
+            {
+                "item_id": f"{series}-{i}",
+                "series": series,
+                "source": src,
+                "candidate": r.text,
+                "stopped_at_end": r.stopped_at_end,
+            }
+            for i, (src, r) in enumerate(zip(sources, results, strict=True))
+        ]
+
+    out = styled_outputs(args.checkpoint.stem)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n")
+    truncated = sum(not r["stopped_at_end"] for r in rows)
+    log.info(
+        "wrote %d styled outputs (%d truncated at max_tokens) -> %s", len(rows), truncated, out
+    )
+    return 0
+
+
 def _sample(args: argparse.Namespace) -> int:
     samples = sample_from_checkpoint(
         args.checkpoint,
@@ -115,6 +166,12 @@ def register(parser: argparse.ArgumentParser) -> None:
     f.add_argument("--config", type=Path, default=train_config("styler-v1"))
     f.add_argument("--device", default=None, help="cuda/cpu (default: auto)")
     f.set_defaults(func=_sft)
+
+    y = sub.add_parser("style", help="styler output for the eval sources -> JSONL (Phase 6)")
+    y.add_argument("--checkpoint", type=Path, default=checkpoints_dir() / "styler-v1.pt")
+    y.add_argument("--limit", type=int, default=285, help="held-out pairs to style")
+    y.add_argument("--device", default=None)
+    y.set_defaults(func=_style)
 
     s = sub.add_parser("sample", help="generate text from a trained checkpoint")
     s.add_argument("--checkpoint", type=Path, default=checkpoints_dir() / "tinycankar.pt")
