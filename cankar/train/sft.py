@@ -190,10 +190,17 @@ class SftConfig(BaseModel):
     batch_size: int = 16
     epochs: float = 3.0
 
-    # Fine-tuning, not pretraining: a tenth of the base run's 2e-3, because the
-    # checkpoint already holds the Cankar voice and the job is to attach it to a
-    # prompt, not to relearn it. Too high here is catastrophic forgetting.
-    matrix_lr: float = 2e-4
+    # Fine-tuning, not pretraining. `setup_optimizer` builds SIX parameter
+    # groups with independently tuned rates (lm_head 4e-3, embedding 0.2,
+    # value_embeds 0.1, x0 0.5, smear 0.2, matrix 2e-3), so setting matrix_lr
+    # alone leaves the embedding group running ~1000x higher than intended -
+    # which is exactly the catastrophic forgetting this comment claimed to
+    # prevent, and did not (caught on the first GPU run, 2026-07-28).
+    #
+    # lr_scale multiplies EVERY group, preserving nanochat's tuned ratios
+    # between them while lowering the whole schedule. 0.1 is a tenth of the
+    # pretraining rates.
+    lr_scale: float = 0.1
     warmup_frac: float = 0.03
     min_lr_frac: float = 0.1
     weight_decay: float = 0.0

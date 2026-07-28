@@ -12,10 +12,10 @@ seq_len = 512      # p99 of the pair set is 469 tokens; 512 covers 99.9%
 batch_size = 16
 epochs = 3.0
 
-# A tenth of the base run's 2e-3. The checkpoint already holds the Cankar
-# voice; the job is to attach it to a prompt, not relearn it. Too high here
-# is catastrophic forgetting of what Phase 4 bought.
-matrix_lr = 2e-4
+# A tenth of EVERY pretraining rate. setup_optimizer tunes six groups
+# independently; scaling only the matrices left the embedding group ~1000x
+# too high, which is the catastrophic forgetting this was meant to prevent.
+lr_scale = 0.1
 warmup_frac = 0.03
 min_lr_frac = 0.1
 

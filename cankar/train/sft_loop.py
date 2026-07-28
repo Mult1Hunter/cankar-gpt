@@ -85,10 +85,16 @@ def train_styler(
 
     spe = sft.steps_per_epoch(data, config.batch_size)
     total_steps = max(1, int(spe * config.epochs))
-    optimizer = model.setup_optimizer(matrix_lr=config.matrix_lr, weight_decay=config.weight_decay)
+    optimizer = model.setup_optimizer(weight_decay=config.weight_decay)
+    # Scale EVERY group, not just the matrices. nanochat tunes six groups
+    # independently and their ratios are load-bearing; uniform scaling lowers
+    # the schedule without disturbing them.
+    for group in optimizer.param_groups:
+        group["initial_lr"] = group["lr"] * config.lr_scale
+        group["lr"] = group["initial_lr"]
     log.info(
         "%s: from %s (step %d) | %d pairs -> %d examples | %d target tokens | "
-        "%d steps/epoch | %d steps (%.1f epochs) | %d held-out",
+        "%d steps/epoch | %d steps (%.1f epochs) | %d held-out | lr_scale %.2f",
         config.name,
         config.init_from,
         base.get("step", -1),
@@ -99,6 +105,7 @@ def train_styler(
         total_steps,
         config.epochs,
         len(holdout.examples),
+        config.lr_scale,
     )
     log.info(
         "held-out loss before training: %.4f", evaluate(model, holdout, config.batch_size, device)
@@ -128,7 +135,7 @@ def train_styler(
                     step,
                     total_steps,
                     loss.item(),
-                    optimizer.param_groups[0]["lr"],
+                    max(g["lr"] for g in optimizer.param_groups),
                     (step + 1) * config.batch_size * config.seq_len / (time.monotonic() - t0),
                 )
             if step and step % config.eval_every == 0:
