@@ -224,12 +224,15 @@ Do not build serving or the Laravel orchestrator before the styler exists.
 ## Phase 5 - Synthetic style pairs (1-2 sessions, ~$5-15 API)
 
 - [x] Chunk Cankar into 5-15k passages (2-6 sentences): `cankar pairs segment`
-      cuts **17,304** paragraph-bounded passages (5.85M chars) from the 155 wikivir
-      Cankar docs left after holdout exclusion. Own sentence splitter - the
-      chunker's cuts at 28.5% of the corpus's ellipses, harmless in a token-budget
-      ladder and corrupting here. The pool exceeds the 5-15k band on purpose:
-      de-styling selects from it, and surplus is what lets the segmenter reject
-      every ambiguous candidate instead of parsing it
+      cuts **13,872** paragraph-bounded passages (4.73M chars) from the 82 wikivir
+      prose docs left after excluding 50 held-out works and 73 non-prose ones.
+      Own sentence splitter - the chunker's cuts at 28.5% of the corpus's
+      ellipses, harmless in a token-budget ladder and corrupting here. Genre is
+      read from the committed works ledger: segmenting Cankar's six plays as
+      prose produced 1,223 passages with speaker labels glued into the source
+      (design-review 2026-07-28). Surplus is what lets the segmenter reject every
+      ambiguous candidate - including works whose ledger row records no genre -
+      instead of parsing it
 - [ ] Claude Batch API de-styling -> plain modern Slovene; pair `(plain -> original Cankar)`
 - [ ] **Distribution-shift fix (A1):** ONE shared "plain Slovene register" prompt, reused verbatim for
   (a) de-styling in training data generation and (b) draft-writing at inference. Non-negotiable design invariant.
@@ -324,7 +327,7 @@ Do not build serving or the Laravel orchestrator before the styler exists.
 - [ ] Segment the 41 dLib Cankar docs. They carry a median of ZERO blank-line
       paragraphs at 78-char hard-wrapped lines, so `pairs/segment.py`'s paragraph
       unit is absent and recovering it means guessing where breaks were. Skipped
-      because wikivir alone yields 17,304 passages against a 5-15k need - revisit
+      because wikivir prose alone yields 13,872 passages against a ~10k need - revisit
       only if Phase 6 turns out to be data-starved, never for coverage's sake
 - [ ] `ProvenanceStamped` base for the four manifests that all declare
       `schema_version / corpus_sha256 / git_sha / created_at` (core/holdout,
