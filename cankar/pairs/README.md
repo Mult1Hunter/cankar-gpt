@@ -8,15 +8,18 @@ register (design invariant #1, `cankar/core/register.py`).
   source units for de-styling. Owns its sentence splitter rather than reusing
   the chunker's: that one cuts at 28.5% of the corpus's ellipses, which is
   harmless in a token-budget ladder and corrupting here. Passages are
-  paragraph-bounded (the median Cankar paragraph is already 2 sentences),
+  paragraph-bounded (the median Cankar paragraph is already 2 sentences) and
   content-addressed by `passage_id` so de-styling is resumable without
-  re-billing, and held-out works are excluded before anything is cut - a pair
-  from a held-out work silently contaminates the Phase 6 evaluation.
-  Wikivir-only; dLib has no paragraph structure to read (ROADMAP deferral).
+  re-billing. Three doc-level filters, all recorded in the manifest: held-out
+  works (a pair from one silently contaminates the Phase 6 evaluation),
+  non-prose genres read from the committed works ledger (a paragraph in drama
+  is a speaker turn, not a prose unit), and non-wikivir sources (dLib has no
+  paragraph structure to read). Default-deny on all three.
   Writes `data/pairs/passages.jsonl` + a committed manifest + a report.
 - `cli.py` - `cankar pairs segment`.
 
-The manifest stamps `register_sha256`, so editing the register marks previously
-generated pairs stale instead of silently mixing two distributions.
+The manifest hashes the artifact it describes, so "regenerate and diff" is
+followable. It deliberately does NOT stamp the register: segmentation never
+reads it, and that stamp belongs on the de-styled pairs manifest.
 
 De-styling (Batch API) and HF Hub publication are the next deliverables.

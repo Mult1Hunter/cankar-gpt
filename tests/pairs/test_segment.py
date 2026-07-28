@@ -11,9 +11,10 @@ sources into fluent, plausible, wrong de-stylings.
 from __future__ import annotations
 
 from cankar.pairs.segment import (
+    DocSkip,
     RejectReason,
     SegmentParams,
-    is_source_doc,
+    classify_doc,
     iter_paragraphs,
     passage_id,
     segment_doc,
@@ -61,20 +62,51 @@ def test_ellipsis_char_behaves_like_the_dotted_form() -> None:
 
 
 def test_abbreviation_does_not_end_a_sentence() -> None:
-    """Rare (67 hits / 246 docs) but the capital-letter rule alone cannot see
-    these - `dr. Ivan` looks exactly like a boundary."""
+    """Rare (126 sites where the rule changes the outcome, across 51 docs) but
+    the capital-letter rule alone cannot see these - `dr. Ivan` looks exactly
+    like a boundary."""
     assert len(split_sentences("Obiskal ga je dr. Ivan Tavčar tisto jutro.")) == 1
 
 
 def test_ordinal_does_not_end_a_sentence() -> None:
+    """The year form is the one that EXERCISES the digit guard. "1. maja" is
+    already suppressed by the capital-letter rule, so asserting only that made
+    the test vacuous - deleting `token.isdigit()` left the suite green
+    (mutation-tested, design-review 2026-07-28)."""
     assert len(split_sentences("Bilo je 1. maja tistega leta.")) == 1
+    assert len(split_sentences("Bilo je leta 1918. Nato je odšel.")) == 1
 
 
 def test_dialogue_close_then_capital_splits() -> None:
-    """All three transcription conventions close a sentence."""
-    for quoted in ('„Dolgo sem hodil, zdaj sem prišel?"', "»Pij, ljubica moja!«"):
+    """All FOUR closing forms end a sentence. The `“` case is the regression
+    gate for the bug this suite missed: `„...“` is the corpus's dominant quoting
+    convention (9,154 vs 2,009 for `"`), `“` was absent from the terminal class,
+    and 2,429 boundaries were being swallowed (design-review 2026-07-28)."""
+    for quoted in (
+        '„Dolgo sem hodil, zdaj sem prišel?"',
+        "„Dolgo sem hodil, zdaj sem prišel.“",
+        "»Pij, ljubica moja!«",
+        "»Ostani z menoj.«",
+    ):
         text = f"{quoted} Naslonila je glavo na njegovo ramo."
         assert len(split_sentences(text)) == 2, quoted
+
+
+def test_low_high_quoted_dialogue_turns_split_fully() -> None:
+    """The shape that produced the miss: consecutive `„...“` turns in one
+    paragraph. Understated n_sentences silently violates the 2-6 contract."""
+    text = (
+        "„Dolgo sem hodil, zdaj sem prišel.“ Naslonila je glavo na ramo. „Ostani.“ Nato je molčal."
+    )
+    assert len(split_sentences(text)) == 4
+
+
+def test_boundary_before_an_opening_quote_splits() -> None:
+    """The opener branch of the rule. Stripping the quote glyphs from _OPENERS
+    left the suite green - the standard next-line-of-dialogue shape was
+    untested (mutation-tested, design-review 2026-07-28)."""
+    assert len(split_sentences("Nato je molčal. »Pojdi!«")) == 2
+    assert len(split_sentences("Nato je molčal. „Pojdi!“")) == 2
 
 
 def test_plain_sentences_split() -> None:
@@ -86,7 +118,7 @@ def test_plain_sentences_split() -> None:
 
 
 def test_headings_are_rejected_not_segmented() -> None:
-    """534 roman-numeral marks / 92 ALLCAPS titles: not prose."""
+    """534 roman-numeral marks / 95 ALLCAPS titles: not prose."""
     for heading in ("IV.", "XII", "BELA KRIZANTEMA"):
         passages, rejects = segment_doc(_doc(heading), PARAMS)
         assert passages == []
@@ -131,12 +163,16 @@ def test_too_long_passage_is_rejected_whole() -> None:
 
 
 def test_every_emitted_passage_respects_the_band() -> None:
+    """Asserted against LITERALS, not against PARAMS. Using the same params that
+    produced the windows made this tautological: raising max_sentences to 12 left
+    the suite green and the ROADMAP's "2-6 sentences" contract pinned by nothing
+    (mutation-tested, design-review 2026-07-28)."""
     para = "Vrnil se je domov po dolgi poti. Nato je legel in premišljeval. Zunaj je snežilo. "
     passages, _ = segment_doc(_doc(para * 4), PARAMS)
     assert passages
     for p in passages:
-        assert PARAMS.min_sentences <= p.n_sentences <= PARAMS.max_sentences
-        assert PARAMS.min_chars <= p.n_chars <= PARAMS.max_chars
+        assert 2 <= p.n_sentences <= 6
+        assert 120 <= p.n_chars <= 800
 
 
 def test_iter_paragraphs_flattens_internal_wrapping() -> None:
@@ -146,20 +182,61 @@ def test_iter_paragraphs_flattens_internal_wrapping() -> None:
 # --- eligibility: the contamination gate ------------------------------------
 
 
+PROSE = {"t": "Proza"}
+
+
 def test_holdout_urls_are_excluded() -> None:
     """A pair built from a held-out work contaminates the Phase 6 evaluation,
     and the contamination is one-way and undetectable afterwards."""
     doc = _doc("x")
-    assert is_source_doc(doc, frozenset())
-    assert not is_source_doc(doc, frozenset({doc["url"]}))
+    assert classify_doc(doc, frozenset(), PROSE) is None
+    assert classify_doc(doc, frozenset({doc["url"]}), PROSE) is DocSkip.HELD_OUT
 
 
 def test_non_cankar_and_dlib_docs_are_not_sources() -> None:
-    assert not is_source_doc(_doc("x", author="Josip Jurčič"), frozenset())
-    assert not is_source_doc(_doc("x", source="dlib"), frozenset())
-    assert not is_source_doc(
-        {"title": "T", "url": "u", "text": "x", "source": "wikivir", "author": None}, frozenset()
+    skip = DocSkip.NOT_CANKAR_PROSE_SOURCE
+    assert classify_doc(_doc("x", author="Josip Jurčič"), frozenset(), PROSE) is skip
+    assert classify_doc(_doc("x", source="dlib"), frozenset(), PROSE) is skip
+    assert (
+        classify_doc(
+            {"title": "T", "url": "u", "text": "x", "source": "wikivir", "author": None},
+            frozenset(),
+            PROSE,
+        )
+        is skip
     )
+
+
+def test_drama_is_excluded_by_genre() -> None:
+    """The class the brief missed entirely. Cankar's six plays produced 1,223
+    passages (7.1%) with speaker labels glued into the source - "Kantor Ne bodi
+    neusmiljena" - which would teach the styler to emit them. In drama a
+    paragraph is a speaker turn, so this module's unit means something else
+    there (design-review 2026-07-28)."""
+    doc = _doc("x")
+    assert classify_doc(doc, frozenset(), {"t": "Dramatika"}) is DocSkip.GENRE_NOT_PROSE
+    assert classify_doc(doc, frozenset(), {"t": "Pesmi"}) is DocSkip.GENRE_NOT_PROSE
+
+
+def test_missing_genre_defaults_to_deny() -> None:
+    """Default-deny: an absent genre asserts nothing about form, and a venue
+    label ("Dela, objavljena v Slovenskem narodu") may contain drama. The
+    surplus pays for this, exactly as with dLib."""
+    doc = _doc("x")
+    assert classify_doc(doc, frozenset(), {"t": None}) is DocSkip.GENRE_NOT_PROSE
+    assert classify_doc(doc, frozenset(), {}) is DocSkip.GENRE_NOT_PROSE
+
+
+def test_leading_section_numeral_is_stripped_from_prose() -> None:
+    """A numeral with no blank line after it flattens into the first sentence
+    and was counted as one (22 passages). Arabic stays - "1. maja" is an
+    ordinal date far more often than a section mark."""
+    assert list(iter_paragraphs("IV. Solnce se je bilo skrilo.")) == ["Solnce se je bilo skrilo."]
+    # undotted form, real corpus shape from "Moje življenje"
+    assert list(iter_paragraphs("VII Ko sem videl smrt.")) == ["Ko sem videl smrt."]
+    assert list(iter_paragraphs("1. maja se je vrnil.")) == ["1. maja se je vrnil."]
+    # bare "V" is the preposition, not a numeral - stripping it would eat prose
+    assert list(iter_paragraphs("V Ljubljani je bilo lepo.")) == ["V Ljubljani je bilo lepo."]
 
 
 # --- content addressing: what makes de-styling resumable --------------------
