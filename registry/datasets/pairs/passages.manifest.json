@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "segmenter_version": 1,
+  "corpus_sha256": "d9b05bf04db96db6d733a08540bda86f5458ed91b8182a61f5262b6d0dd22a6b",
+  "holdout_sha256": "07ccca96a4fe339d50a9da9d38f71b4bcec98962e601d6460b633edca96331a2",
+  "register_sha256": "cec36eb07e77c6d99076ad98ce176c0c097827f6ecdc70ee274b4547be6d985d",
+  "git_sha": "1427e06",
+  "created_at": "2026-07-28T09:28:20+00:00",
+  "source": "wikivir",
+  "params": {
+    "min_sentences": 2,
+    "max_sentences": 6,
+    "min_chars": 120,
+    "max_chars": 800
+  },
+  "n_docs": 155,
+  "n_passages": 17304,
+  "n_chars": 5852619,
+  "reject_counts": {
+    "heading": 477,
+    "too_few_sentences": 18118,
+    "too_long": 604,
+    "too_short": 4880
+  }
+}
