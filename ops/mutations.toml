@@ -227,8 +227,8 @@ tests = "tests/train/test_sft.py"
 # rehearsal_frac set with no replay texts must fail loud - a silently pair-only
 # run is indistinguishable from rehearsal that did not help.
 file = "cankar/train/sft_loop.py"
-old = "        if not rehearsal_texts:"
-new = "        if False:"
+old = "    if config.uses_rehearsal and not rehearsal_texts:"
+new = "    if False:"
 tests = "tests/train/test_sft.py"
 
 [[mutation]]

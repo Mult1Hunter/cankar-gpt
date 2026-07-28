@@ -96,6 +96,17 @@ def train_styler(
     revision checked) is `train/data.py`'s job and duplicating that resolution
     here is how the two would drift apart.
     """
+    # Argument checks BEFORE any artifact is touched: this one is a caller
+    # mistake, knowable with no I/O, and raising it after a tokenizer load and a
+    # 496MB chunk read means a rented pod pays for the round trip. It also kept
+    # the test for it green locally and red in CI, where the tokenizer that got
+    # loaded first is gitignored.
+    if config.uses_rehearsal and not rehearsal_texts:
+        raise CankarError(
+            f"rehearsal_frac is {config.rehearsal_frac} but no replay texts were passed - "
+            "a silently pair-only run would look like replay that did not help"
+        )
+
     torch.manual_seed(config.seed)
     enc = load_encoding(config.tokenizer)
     model, base = load_base(checkpoints_dir / f"{config.init_from}.pt", device, config.seq_len)
@@ -107,11 +118,7 @@ def train_styler(
     if not data.examples:
         raise CankarError(f"no usable pairs in {train_pairs}")
     if config.uses_rehearsal:
-        if not rehearsal_texts:
-            raise CankarError(
-                f"rehearsal_frac is {config.rehearsal_frac} but no replay texts were passed - "
-                "a silently pair-only run would look like replay that did not help"
-            )
+        assert rehearsal_texts is not None  # guarded above
         data = sft.with_rehearsal(data, rehearsal_texts, enc, config)
 
     spe = sft.steps_per_epoch(data, config.batch_size)
