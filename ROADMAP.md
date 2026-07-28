@@ -223,7 +223,13 @@ Do not build serving or the Laravel orchestrator before the styler exists.
 
 ## Phase 5 - Synthetic style pairs (1-2 sessions, ~$5-15 API)
 
-- [ ] Chunk Cankar into 5-15k passages (2-6 sentences)
+- [x] Chunk Cankar into 5-15k passages (2-6 sentences): `cankar pairs segment`
+      cuts **17,304** paragraph-bounded passages (5.85M chars) from the 155 wikivir
+      Cankar docs left after holdout exclusion. Own sentence splitter - the
+      chunker's cuts at 28.5% of the corpus's ellipses, harmless in a token-budget
+      ladder and corrupting here. The pool exceeds the 5-15k band on purpose:
+      de-styling selects from it, and surplus is what lets the segmenter reject
+      every ambiguous candidate instead of parsing it
 - [ ] Claude Batch API de-styling -> plain modern Slovene; pair `(plain -> original Cankar)`
 - [ ] **Distribution-shift fix (A1):** ONE shared "plain Slovene register" prompt, reused verbatim for
   (a) de-styling in training data generation and (b) draft-writing at inference. Non-negotiable design invariant.
@@ -306,18 +312,24 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       retiring the header-regex freshness path for those two
 - [ ] `corpus_stamp(sha)` helper in `cankar/core/reports.py`, adopted by the five
       writers (evals/holdout, evals/bpb, tokenizer/chunk, tokenizer/evaluate,
-      tokenizer/stats), so the stamp is an exact-line match not an 80-char window.
-      Today those five emit five different phrasings; all parse, one by 4 chars.
+      tokenizer/stats, pairs/segment), so the stamp is an exact-line match not an
+      80-char window. Six writers now, still five phrasings - `passages.md` reuses
+      `bpb.md`'s exact line - and all parse, one by 4 chars.
       **Blocked on a decision, not on effort:** adopting a canonical stamp means
       regenerating each report, and `eval-holdout.md`'s writer is
       `cankar evals holdout-freeze` - re-running it re-selects the held-out works
       that every BPB number is measured against, which `registry/evals/README.md`
       permits only on a deliberate corpus re-merge. Do this AT the next re-merge,
       or accept a legacy phrasing for that one report
-- [ ] `ProvenanceStamped` base for the three manifests that all declare
+- [ ] Segment the 41 dLib Cankar docs. They carry a median of ZERO blank-line
+      paragraphs at 78-char hard-wrapped lines, so `pairs/segment.py`'s paragraph
+      unit is absent and recovering it means guessing where breaks were. Skipped
+      because wikivir alone yields 17,304 passages against a 5-15k need - revisit
+      only if Phase 6 turns out to be data-starved, never for coverage's sake
+- [ ] `ProvenanceStamped` base for the four manifests that all declare
       `schema_version / corpus_sha256 / git_sha / created_at` (core/holdout,
-      evals/style, evals/bpb). The drift risk is the caller side - `cli.py` now
-      types those three fields out three times and forgetting one is silent.
+      evals/style, evals/bpb, pairs/segment). The drift risk is the caller side -
+      `cli.py` now types those fields out four times and forgetting one is silent.
       Is-a, not inheritance-for-reuse, and field order keeps the committed JSON
       byte-compatible. Deferred: it touches three frozen artifacts at once
 - [x] Committed BPB report/manifest for canonical checkpoints: `cankar evals
