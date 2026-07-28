@@ -70,7 +70,10 @@ name = "core is the bottom layer; stages sit above it and stay independent"
 type = "layers"
 # bottom layer = core | model (both leaf: model is the vendored GPT, imports only
 # torch; ADR 0016). Stages (top, independent siblings) import the bottom layer.
-layers = ["cankar.corpus | cankar.tokenizer | cankar.evals | cankar.train", "cankar.core | cankar.model"]
+layers = [
+    "cankar.corpus | cankar.tokenizer | cankar.evals | cankar.train | cankar.pairs",
+    "cankar.core | cankar.model",
+]
 
 [tool.mypy]
 files = ["cankar"]
