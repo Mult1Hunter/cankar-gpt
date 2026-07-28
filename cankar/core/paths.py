@@ -253,6 +253,11 @@ def style_report() -> Path:
     return repo_root() / "registry" / "reports" / "style.md"
 
 
+def style_deploy_manifest() -> Path:
+    """Frozen deploy verdict, bound to the classifier sha it was measured on."""
+    return repo_root() / "registry" / "evals" / "style-deploy.json"
+
+
 def style_deploy_report() -> Path:
     """MF-3: the classifier measured on its DEPLOY task rather than its training
     task. Separate from style_report() because it answers a different question

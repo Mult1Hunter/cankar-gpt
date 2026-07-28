@@ -12,8 +12,9 @@ read as VOICE (not topic/source/form) and the ablation confirms it.
 - **ROC-AUC 0.993 +/- 0.004**, PR-AUC 0.986
 - 53,446 chunks (13,322 Cankar / 40,124 peer, pos-rate 0.249), 479 groups, 556 docs, 319 verse docs dropped
 - per-fold positive rate: [0.2491, 0.2495, 0.2492, 0.2494, 0.2491]
-- deploy status: **PENDING Phase 6** (train negative is 19th-c
-  peer prose; the Phase-6 negative is modern de-styled Slovene - unseen here)
+- deploy status: **measured - inadequate for deploy** - train negative is 19th-c
+  peer prose; the deploy negative is modern plain Slovene, which this
+  training run never saw. Measured separately: `style-deploy.md`.
 
 ## Ablation - which feature family carries the signal (MF-5b)
 

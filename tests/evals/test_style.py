@@ -242,3 +242,47 @@ def test_a_missing_series_is_not_treated_as_zero() -> None:
 
     with pytest.raises(CankarError, match="all three series"):
         deploy_check(_FakeModel({"c1": 0.9}), ["c1"], [], ["c1"])
+
+
+def test_a_deploy_verdict_does_not_follow_retrained_weights(tmp_path) -> None:
+    """The verdict belongs to a specific artifact, not to the project. Carrying
+    it onto a retrained classifier would publish a claim about weights nobody
+    measured - in either direction, a stale VALIDATED being the dangerous one."""
+    import json
+
+    from cankar.evals.style import DeployStatus, deploy_status_for
+
+    rec = tmp_path / "style-deploy.json"
+    rec.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_sha256": "a" * 64,
+                "corpus_sha256": "b" * 64,
+                "git_sha": "deadbee",
+                "created_at": "2026-07-28T00:00:00+00:00",
+                "check": {
+                    "n_cankar": 2,
+                    "n_destyled": 2,
+                    "n_modern": 2,
+                    "mean_cankar": 0.9,
+                    "mean_destyled": 0.2,
+                    "mean_modern": 0.1,
+                    "style_effect": 0.7,
+                    "topic_effect": 0.1,
+                    "deploy_auc": 1.0,
+                    "verdict": DeployStatus.VALIDATED.value,
+                },
+            }
+        )
+    )
+    assert deploy_status_for(rec, "a" * 64) is DeployStatus.VALIDATED
+    assert deploy_status_for(rec, "c" * 64) is DeployStatus.PENDING_PHASE6
+
+
+def test_a_missing_deploy_record_reads_as_pending(tmp_path) -> None:
+    """Absence must mean unknown, never validated - the safe direction blocks
+    claims until someone measures."""
+    from cankar.evals.style import DeployStatus, deploy_status_for
+
+    assert deploy_status_for(tmp_path / "nope.json", "a" * 64) is DeployStatus.PENDING_PHASE6

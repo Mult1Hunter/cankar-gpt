@@ -283,3 +283,12 @@ file = "cankar/evals/style.py"
 old = "            if auc >= DEPLOY_AUC_FLOOR and (mc - md) > (md - mm)"
 new = "            if auc >= DEPLOY_AUC_FLOOR"
 tests = "tests/evals/test_style.py"
+
+[[mutation]]
+# A deploy verdict belongs to the artifact it was measured on. Ignoring the sha
+# would carry a stale verdict onto retrained weights - a stale VALIDATED being
+# the dangerous direction.
+file = "cankar/evals/style.py"
+old = "    if record.artifact_sha256 != artifact_sha:"
+new = "    if False:"
+tests = "tests/evals/test_style.py"

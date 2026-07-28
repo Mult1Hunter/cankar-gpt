@@ -533,8 +533,9 @@ def write_style_report(out: Path, manifest: StyleManifest, ev: Evaluation) -> Pa
         f"pos-rate {m.pos_rate:.3f}), {m.n_groups} groups, {m.n_docs} docs, "
         f"{m.n_verse_docs_dropped} verse docs dropped",
         f"- per-fold positive rate: {m.metrics.per_fold_pos_rate}",
-        f"- deploy status: **{m.deploy_validated.value}** (train negative is 19th-c",
-        "  peer prose; the Phase-6 negative is modern de-styled Slovene - unseen here)",
+        f"- deploy status: **{m.deploy_validated.value}** - train negative is 19th-c",
+        "  peer prose; the deploy negative is modern plain Slovene, which this",
+        "  training run never saw. Measured separately: `style-deploy.md`.",
         "",
         "## Ablation - which feature family carries the signal (MF-5b)",
         "",
@@ -583,6 +584,49 @@ def write_style_report(out: Path, manifest: StyleManifest, ev: Evaluation) -> Pa
 # ----------------------------------------------------------------------------
 # MF-3: is the scorer fit for the task it is DEPLOYED on? (Phase 6)
 # ----------------------------------------------------------------------------
+
+
+class DeployRecord(BaseModel):
+    """A deploy verdict, bound to the exact classifier it was measured on.
+
+    `artifact_sha256` is the whole point. The verdict is a property of a
+    particular trained scorer, not of the project - carrying it forward onto a
+    retrained artifact without checking would let a stale "inadequate" (or a
+    stale "validated") attach itself to weights nobody measured.
+    """
+
+    schema_version: int = 1
+    artifact_sha256: str
+    corpus_sha256: str
+    git_sha: str
+    created_at: str
+    check: DeployCheck
+
+
+def load_deploy_record(path: Path) -> DeployRecord:
+    return load_frozen(path, DeployRecord, "cankar evals deploy-check")
+
+
+def deploy_status_for(record_path: Path, artifact_sha: str) -> DeployStatus:
+    """The recorded verdict IF it was measured on this exact artifact.
+
+    Anything else is PENDING, including a missing record and a sha mismatch. A
+    retrain that changes the weights invalidates the measurement, and defaulting
+    to "unknown" is the only safe direction: it blocks claims until someone
+    re-measures, rather than publishing a verdict about different weights.
+    """
+    if not record_path.exists():
+        return DeployStatus.PENDING_PHASE6
+    record = load_deploy_record(record_path)
+    if record.artifact_sha256 != artifact_sha:
+        log.warning(
+            "deploy record is for artifact %s but this one is %s - status resets to %s",
+            record.artifact_sha256[:12],
+            artifact_sha[:12],
+            DeployStatus.PENDING_PHASE6.value,
+        )
+        return DeployStatus.PENDING_PHASE6
+    return record.check.verdict
 
 
 class DeployCheck(BaseModel):

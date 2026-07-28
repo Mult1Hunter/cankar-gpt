@@ -37,6 +37,7 @@ from cankar.core.paths import (
     holdout_report,
     merged_shard,
     pairs_shard,
+    style_deploy_manifest,
     style_deploy_report,
     style_manifest,
     style_model,
@@ -100,6 +101,11 @@ def _style_train(args: argparse.Namespace) -> int:
     out_model = style_model(args.name)
     out_model.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, out_model)
+    # The deploy verdict is measured separately and belongs to a specific
+    # artifact. Carry it forward ONLY if these are the same weights; anything
+    # else resets to PENDING, which blocks claims rather than publishing a
+    # verdict about a model nobody measured.
+    deploy_status = style.deploy_status_for(style_deploy_manifest(), sha256_of(out_model))
 
     manifest = style.StyleManifest(
         corpus_sha256=sha256_of(corpus),
@@ -113,6 +119,7 @@ def _style_train(args: argparse.Namespace) -> int:
         pos_rate=round(float(data.labels.mean()), 4),
         n_groups=len(set(data.groups.tolist())),
         n_verse_docs_dropped=data.n_verse_docs_dropped,
+        deploy_validated=deploy_status,
         n_docs=data.n_docs,
         metrics=ev.fold,
         ablation=ev.ablation,
@@ -179,7 +186,8 @@ def _deploy_check(args: argparse.Namespace) -> int:
     from cankar.evals.style import deploy_check, load_style_manifest, write_deploy_report
 
     manifest = load_style_manifest(style_manifest())
-    model = joblib.load(style_model(args.name))
+    artifact = style_model(args.name)
+    model = joblib.load(artifact)
 
     pairs = [
         json.loads(x) for x in pairs_shard(PairSet.HOLDOUT).open(encoding="utf-8") if x.strip()
@@ -195,6 +203,14 @@ def _deploy_check(args: argparse.Namespace) -> int:
         destyled=[r["plain"] for r in pairs],
         modern=[d["text"] for d in drafts],
     )
+    record = style.DeployRecord(
+        artifact_sha256=sha256_of(artifact),
+        corpus_sha256=manifest.corpus_sha256,
+        git_sha=git_sha(),
+        created_at=utc_now_iso(),
+        check=check,
+    )
+    write_manifest(record, style_deploy_manifest())
     write_deploy_report(
         style_deploy_report(), check, manifest.metrics.roc_auc_mean, manifest.corpus_sha256
     )

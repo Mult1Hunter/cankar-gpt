@@ -162,7 +162,12 @@ Do not build serving or the Laravel orchestrator before the styler exists.
       have caught this - every peer in its negative is also 1900s prose, so period
       was held constant by construction and period features carried signal without
       ever reading as topic. **No headline style claim may ride on it**;
-      directional signal only. registry/reports/style-deploy.md.
+      directional signal only. registry/reports/style-deploy.md. The verdict is
+      frozen in registry/evals/style-deploy.json BOUND TO THE CLASSIFIER SHA and
+      read back by style-train, so a retrain that changes the weights resets the
+      status to PENDING rather than inheriting a measurement of different weights
+      (the retrain reproduced the artifact byte-identically, so the manifest now
+      carries the verdict).
 - [ ] LLM-judge template for meaning preservation *(deferred to Phase 6 - needs Phase-5 pairs; building now is speculative)*
 - [ ] Dev set design: 200 held-out pairs **+ 50 fresh drafts**. Held-out half DONE:
       `cankar pairs segment/destyle --set holdout` -> **289 pairs** from the 12
