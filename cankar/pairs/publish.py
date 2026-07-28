@@ -128,9 +128,12 @@ redistribution. Treat it as reference material until the card says otherwise.
 
 ```
 uv run cankar pairs segment
-uv run cankar pairs destyle --limit 10000
+uv run cankar pairs destyle --parse-only   # re-derives pairs from the raw log
 uv run cankar pairs publish
 ```
+
+The middle step re-parses committed raw responses and costs nothing. Generating
+them from scratch is `destyle --limit N`, which submits paid batches.
 
 Provenance: corpus sha256 `{pairs.corpus_sha256[:16]}`, passages sha256
 `{pairs.passages_sha256[:16]}`, pairs sha256 `{pairs.pairs_sha256[:16]}`,
@@ -190,6 +193,21 @@ def build_uploads(
         # The artifact the money bought; the pairs are a re-derivable parse of it.
         Upload(local=raw_path, remote="provenance/destyle-raw.jsonl", required=False),
     ]
+
+
+def require_private(is_private: bool | None, repo_id: str) -> None:
+    """Refuse to upload to a public repo.
+
+    The module docstring asserts this dataset stays private pending the
+    transcription-licensing question, and nothing enforced it. Publication is
+    one-way in practice - forks and caches survive un-publishing - so the
+    property gets a check rather than a sentence (design-review 2026-07-28).
+    """
+    if is_private is not True:
+        raise CankarError(
+            f"{repo_id} is not private. The licensing question on the Wikivir "
+            "transcriptions is open; make the repo private or resolve it deliberately."
+        )
 
 
 def check_uploads(uploads: list[Upload]) -> None:
