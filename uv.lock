@@ -270,7 +270,7 @@ name = "cuda-bindings"
 version = "13.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cuda-pathfinder", marker = "python_full_version < '3.15'" },
+    { name = "cuda-pathfinder" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/51/6b/457ca12dad3ee9bfcc9a545cfd6b64b359ba49de40f776f6e028e678f262/cuda_bindings-13.3.1-cp311-cp311-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:c5879712accf6e14bb01aa5e67440eb84998b8d104b509cc7a6dc0b8f656a474", size = 6053539, upload-time = "2026-05-29T23:11:43.19Z" },
@@ -303,43 +303,43 @@ wheels = [
 
 [package.optional-dependencies]
 cublas = [
-    { name = "nvidia-cublas", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "nvidia-cuda-nvrtc", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-cublas", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cuda-nvrtc", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
 ]
 cudart = [
-    { name = "nvidia-cuda-runtime", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-cuda-runtime", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
 ]
 cufft = [
-    { name = "nvidia-cufft", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-cufft", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-nvjitlink", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
 ]
 cufile = [
-    { name = "nvidia-cufile", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "nvidia-cufile", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
 ]
 cupti = [
-    { name = "nvidia-cuda-cupti", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-cuda-cupti", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
 ]
 curand = [
-    { name = "nvidia-curand", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-curand", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
 ]
 cusolver = [
-    { name = "nvidia-cublas", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "nvidia-cusolver", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "nvidia-cusparse", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-cublas", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cusolver", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-cusparse", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-nvjitlink", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
 ]
 cusparse = [
-    { name = "nvidia-cusparse", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-cusparse", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
+    { name = "nvidia-nvjitlink", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
 ]
 nvjitlink = [
-    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-nvjitlink", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
 ]
 nvrtc = [
-    { name = "nvidia-cuda-nvrtc", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-cuda-nvrtc", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
 ]
 nvtx = [
-    { name = "nvidia-nvtx", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "nvidia-nvtx", marker = "platform_machine == 'aarch64' or platform_machine == 'x86_64'" },
 ]
 
 [[package]]
@@ -404,7 +404,7 @@ wheels = [
 
 [[package]]
 name = "graphifyy"
-version = "0.9.23"
+version = "0.9.70"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "networkx" },
@@ -438,9 +438,9 @@ dependencies = [
     { name = "tree-sitter-verilog" },
     { name = "tree-sitter-zig" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1b/cc/dfd0c049031b789525cecae649f6ca0be6a8fb7a8abd6b57a3561ab1f433/graphifyy-0.9.23.tar.gz", hash = "sha256:b0ff6d1452b8dc69d6df270d486a3a0f9d990a0e21de9cec45fe243004ffbd14", size = 1561001, upload-time = "2026-07-21T17:59:36.6Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4e/b4/cf49a9bb190d2cad860744d83f9e1af36921b03e28e23096b29652817141/graphifyy-0.9.70.tar.gz", hash = "sha256:4e22d94a8288a52cb3663915f1c1321e15f1503b94d173aab5db906375c229cd", size = 2365628, upload-time = "2026-09-27T18:20:26.177Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d3/2a/13e2b658d13cd48292a7ed5d03fce0a84b32ed29733834ce8d590e6b8894/graphifyy-0.9.23-py3-none-any.whl", hash = "sha256:8e37c17903e42a1a1dbbc0c4ce0a0d4e84633925fa613991f4ff71d731e49706", size = 1162819, upload-time = "2026-07-21T17:59:34.937Z" },
+    { url = "https://files.pythonhosted.org/packages/4b/7b/a014352968ab607b0589a7bb03676a52b2d45603b065ca1b93e9b5a81b07/graphifyy-0.9.70-py3-none-any.whl", hash = "sha256:6cb0f060b93778552511e8881c92700d7879a0023b89d69936c77cc9b42239da", size = 1504086, upload-time = "2026-09-27T18:20:23.954Z" },
 ]
 
 [[package]]
@@ -1934,7 +1934,7 @@ resolution-markers = [
     "python_full_version < '3.12'",
 ]
 dependencies = [
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" } },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/7a/97/5a3609c4f8d58b039179648e62dd220f89864f56f7357f5d4f45c29eb2cc/scipy-1.17.1.tar.gz", hash = "sha256:95d8e012d8cb8816c226aef832200b1d45109ed4464303e997c5b13122b297c0", size = 30573822, upload-time = "2026-02-23T00:26:24.851Z" }
 wheels = [
@@ -2009,7 +2009,7 @@ resolution-markers = [
     "python_full_version >= '3.12' and python_full_version < '3.15'",
 ]
 dependencies = [
-    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" } },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a7/25/c2700dfaf6442b4effaa91af24ebce5dc9d31bb4a69706313aae70d72cd0/scipy-1.18.0.tar.gz", hash = "sha256:67b2ad2ad54c72ca6d04975a9b2df8c3638c34ddd5b28738e94fc2b57929d378", size = 30774447, upload-time = "2026-06-19T15:01:43.456Z" }
 wheels = [
